@@ -1,15 +1,18 @@
 #include "util.h"
 #include <leveldb/c.h>
 
-static int fill_cache;
-static int verify_checksum;
-static int lru_size;
-static int max_open_files;
-static int sync;
-static int bits_per_key;
+static int fill_cache = 1;
+static int verify_checksum = 1;
+static int lru_size = 1024;
+static int max_open_files = 1024;
+static int sync = 0;
+static int bits_per_key = 12;
 
-static char *db_name;
-static char *compression;
+static char *db_name = "testdb";
+static char *compression = "snappy";
+static char *range_start = "";
+static char *range_end = "";
+static char *propname = "";
 
 static leveldb_readoptions_t *create_readoptions() {
     leveldb_readoptions_t *ropt = leveldb_readoptions_create();
@@ -53,7 +56,7 @@ static void process_ldb_get(leveldb_t *ldb) {
 
     leveldb_readoptions_t *ropt = create_readoptions();
 
-    while (line = fgets(buf, sizeof(buf), stdin)) {
+    while ((line = fgets(buf, sizeof(buf), stdin))) {
         char *enter = strstr(line, "\n");
         if (enter) {
             if (enter == line) {
@@ -90,7 +93,7 @@ static void process_ldb_put(leveldb_t *ldb) {
 
     leveldb_writeoptions_t *wopt = create_writeoptions();
 
-    while (line = fgets(buf, sizeof(buf), stdin)) {
+    while ((line = fgets(buf, sizeof(buf), stdin))) {
         char *enter = strstr(line, "\n");
         if (enter) {
             if (enter == line) {
@@ -129,6 +132,25 @@ static void process_ldb_keys(leveldb_t *ldb) {
     leveldb_readoptions_destroy(ropt);
 }
 
+static void process_ldb_compact_range(leveldb_t *ldb) {
+    printf("start to compact_range start <%s> end <%s>\n", range_start, range_end);
+
+    struct timeval tv_start = tv_now();
+    leveldb_compact_range(ldb, range_start, strlen(range_start), range_end, strlen(range_end));
+    printf("compact finished! taken %.2fms\n", tv_sub_msec_double(tv_now(), tv_start));
+}
+
+static void process_ldb_property(leveldb_t *ldb) {
+    char *value = leveldb_property_value(ldb, propname);
+
+    if (value == NULL) {
+        printf("get property <%s> but return NULL\n", propname);
+    } else {
+        printf("%s\n", value);
+        leveldb_free(value);
+    }
+}
+
 static void process_ldb(leveldb_t *ldb, const char *typ, const char *errstr) {
     if (ldb == NULL) {
         if (errstr == NULL) {
@@ -146,17 +168,13 @@ static void process_ldb(leveldb_t *ldb, const char *typ, const char *errstr) {
         process_ldb_put(ldb);
     } else if (!strcasecmp(typ, "keys")) {
         process_ldb_keys(ldb);
+    } else if (!strcasecmp(typ, "compact_range")) {
+        process_ldb_compact_range(ldb);
+    } else if (!strcasecmp(typ, "property")) {
+        process_ldb_property(ldb);
     } else {
         printf("invalid type %s\n", typ);
     }
-}
-
-static void init() {
-    db_name = "testdb";
-    compression = "";
-    lru_size = 1024;
-    max_open_files = 1024;
-    bits_per_key = 12;
 }
 
 static void init_kv(key_value_t *kv) {
@@ -178,6 +196,14 @@ static void init_kv(key_value_t *kv) {
             max_open_files = num;
         } else if (!strcasecmp(p->key, "sync")) {
             sync = onoff;
+        } else if (!strcasecmp(p->key, "range_start")) {
+            range_start = strdup(p->value);
+        } else if (!strcasecmp(p->key, "range_end")) {
+            range_end = strdup(p->value);
+        } else if (!strcasecmp(p->key, "propname")) {
+            propname = strdup(p->value);
+        } else {
+            printf("unexpected key <%s>\n", p->key);
         }
     }
 }
@@ -189,8 +215,6 @@ int main(int argc, const char *argv[]) {
         printf("usage: %s get|put|keys [db_name=db] [fill_cache=on|off] [verify_checksum=on|off]\n", base);
         return 1;
     }
-
-    init();
 
     key_value_t *kv = parse_key_values_from_str_array(&argv[2], argc - 2);
     init_kv(kv);
