@@ -4,7 +4,12 @@
 #include <math.h>
 #include <string.h>
 #include <sys/time.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <fcntl.h>
 #include <libgen.h>
+#include <errno.h>
+#include <unistd.h>
 
 static double tv_sub_msec_double(struct timeval end, struct timeval start) {
     return ((double)(end.tv_sec - start.tv_sec)) * 1000 + ((

@@ -16,6 +16,13 @@ static int progress_callback(void *ctx, double dltotal, double dlnow, double ult
     return 0;
 }
 
+static size_t header_callback(char *data, size_t size, size_t nitems, void *userdata) {
+    char *str = strndup(data, size * nitems);
+    printf("Header: %s\n", str);
+    free(str);
+    return nitems * size;
+}
+
 static int start_with(const char *str, const char *expect_start) {
     if (expect_start == NULL) {
         return 1;
@@ -57,6 +64,7 @@ int main(int argc, char **argv) {
     curl_easy_setopt(naive_handle, CURLOPT_NOPROGRESS, 0);
     curl_easy_setopt(naive_handle, CURLOPT_PROGRESSFUNCTION, progress_callback);
     curl_easy_setopt(naive_handle, CURLOPT_PROGRESSDATA, NULL);
+    curl_easy_setopt(naive_handle, CURLOPT_HEADERFUNCTION, header_callback);
 
     printf("Hello %s\nStart to send requets....\n", name);
 
