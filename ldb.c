@@ -44,11 +44,6 @@ static void ldb_options_destroy(ldb_options_t *opt) {
     free(opt);
 }
 
-static void reset_str_ptr(char **pstr, char *new) {
-    free(*pstr);
-    *pstr = strdup(new);
-}
-
 static void ldb_options_parse(ldb_options_t *opt, key_value_t *kv) {
     for (key_value_t *p = kv; p; p = p->next) {
         int onoff = !strcasecmp(p->value, "on");

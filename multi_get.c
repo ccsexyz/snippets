@@ -15,6 +15,7 @@ typedef struct {
     curl_context_t *contexts;
     int context_num;
     int concurrency;
+    key_value_t *headers;
 } file_context_t;
 
 struct curl_context_s {
@@ -23,6 +24,37 @@ struct curl_context_s {
     int part_index;
     size_t offset;
     file_context_t *file_ctx;
+};
+
+static command_t cmds[] = {
+    {
+        "o",
+        "file_name",
+        cmd_set_str,
+        offsetof(file_context_t, file_name),
+        ""
+    },
+    {
+        "",
+        "part_size",
+        cmd_set_size,
+        offsetof(file_context_t, part_size),
+        "2M"
+    },
+    {
+        "c",
+        "conn",
+        cmd_set_int,
+        offsetof(file_context_t, concurrency),
+        "8"
+    },
+    {
+        "H",
+        "header",
+        cmd_set_strlist,
+        offsetof(file_context_t, headers),
+        ""
+    }
 };
 
 static size_t size_of_part(file_context_t *file_ctx, int n) {
@@ -118,6 +150,49 @@ static const char *get_file_name(const char *url) {
     return file_name;
 }
 
+static void add_customized_headers(CURL *eh, key_value_t *headers) {
+    struct curl_slist *chunk = NULL;
+
+    for (key_value_t *p = headers; p; p = p->next) {
+        chunk = curl_slist_append(chunk, p->key);
+    }
+
+    if (chunk) {
+        curl_easy_setopt(eh, CURLOPT_HTTPHEADER, chunk);
+        // FIXME memory leak!
+        // should call curl_slist_free_all after request finished
+    }
+}
+
+static void add_transfer(CURLM *cm, curl_context_t *curl_ctx) {
+    file_context_t *file_ctx = curl_ctx->file_ctx;
+
+    CURL *eh = curl_easy_init();
+    curl_easy_setopt(eh, CURLOPT_URL, file_ctx->url);
+    curl_easy_setopt(eh, CURLOPT_PRIVATE, curl_ctx);
+    add_customized_headers(eh, file_ctx->headers);
+
+    if (curl_ctx->probing) {
+        curl_easy_setopt(eh, CURLOPT_WRITEFUNCTION, dummy_write_cb);
+        curl_easy_setopt(eh, CURLOPT_HEADERFUNCTION, probe_header_callback);
+        curl_easy_setopt(eh, CURLOPT_HEADERDATA, curl_ctx);
+        add_range_header(eh, 0, 0);
+    } else if (curl_ctx->naive) {
+        curl_easy_setopt(eh, CURLOPT_WRITEFUNCTION, write_cb);
+    } else {
+        curl_easy_setopt(eh, CURLOPT_WRITEFUNCTION, write_cb);
+        size_t start = curl_ctx->offset;
+        size_t end = start + size_of_part(file_ctx, curl_ctx->part_index) - 1;
+        add_range_header(eh, start, end);
+    }
+
+    curl_easy_setopt(eh, CURLOPT_WRITEDATA, curl_ctx);
+
+    curl_multi_add_handle(cm, eh);
+
+    still_alive = 1;
+}
+
 static void add_probe_transfer(CURLM *cm, file_context_t *file_ctx) {
     const char *url = file_ctx->url;
 
@@ -125,36 +200,7 @@ static void add_probe_transfer(CURLM *cm, file_context_t *file_ctx) {
     curl_ctx->file_ctx = file_ctx;
     curl_ctx->probing = 1;
 
-    CURL *eh = curl_easy_init();
-    curl_easy_setopt(eh, CURLOPT_WRITEFUNCTION, dummy_write_cb);
-    curl_easy_setopt(eh, CURLOPT_URL, url);
-    curl_easy_setopt(eh, CURLOPT_PRIVATE, curl_ctx);
-    curl_easy_setopt(eh, CURLOPT_HEADERFUNCTION, probe_header_callback);
-    curl_easy_setopt(eh, CURLOPT_HEADERDATA, curl_ctx);
-    add_range_header(eh, 0, 0);
-    curl_multi_add_handle(cm, eh);
-
-    still_alive = 1;
-}
-
-static void add_transfer(CURLM *cm, curl_context_t *curl_ctx) {
-    file_context_t *file_ctx = curl_ctx->file_ctx;
-
-    CURL *eh = curl_easy_init();
-    curl_easy_setopt(eh, CURLOPT_WRITEFUNCTION, write_cb);
-    curl_easy_setopt(eh, CURLOPT_WRITEDATA, curl_ctx);
-    curl_easy_setopt(eh, CURLOPT_URL, file_ctx->url);
-    curl_easy_setopt(eh, CURLOPT_PRIVATE, curl_ctx);
-
-    if (!curl_ctx->naive) {
-        size_t start = curl_ctx->offset;
-        size_t end = start + size_of_part(file_ctx, curl_ctx->part_index) - 1;
-        add_range_header(eh, start, end);
-    }
-
-    curl_multi_add_handle(cm, eh);
-
-    still_alive = 1;
+    add_transfer(cm, curl_ctx);
 }
 
 static void naive_get(CURLM *cm, file_context_t *file_ctx) {
@@ -247,33 +293,10 @@ static void process_message(CURLM *cm, CURLMsg *msg) {
     }
 }
 
-static file_context_t *create_file_context(const char *url) {
+static file_context_t *create_file_context() {
     file_context_t *file_ctx = (file_context_t *)calloc(sizeof(file_context_t), 1);
-    file_ctx->url = strdup(url);
-    file_ctx->file_name = get_file_name(url);
-    file_ctx->part_size = 2 * 1048576;
-    file_ctx->concurrency = 8;
 
     return file_ctx;
-}
-
-static void reset_str_ptr(char **pstr, char *new) {
-    free(*pstr);
-    *pstr = strdup(new);
-}
-
-static void file_context_parse(file_context_t *file_ctx, key_value_t *kv) {
-    for (key_value_t *p = kv; p; p = p->next) {
-        int num = atoi(p->value);
-
-        if (!strcasecmp(p->key, "file_name")) {
-            reset_str_ptr((char **)&file_ctx->file_name, p->value);
-        } else if (!strcasecmp(p->key, "part_size")) {
-            file_ctx->part_size = num;
-        } else if (!strcasecmp(p->key, "conn") && num > 0) {
-            file_ctx->concurrency = num;
-        }
-    }
 }
 
 int main(int argc, const char *argv[]) {
@@ -284,9 +307,28 @@ int main(int argc, const char *argv[]) {
         return 1;
     }
 
-    key_value_t *kv = parse_key_values_from_str_array(&argv[2], argc - 2);
-    file_context_t *file_ctx = create_file_context(argv[1]);
-    file_context_parse(file_ctx, kv);
+    char *errstr = NULL;
+    file_context_t *file_ctx = create_file_context();
+    int rc = parse_command_args(argc, argv, file_ctx, cmds, array_size(cmds), &errstr, (char **)&file_ctx->url);
+    if (rc != 0) {
+        printf("parse command error: %s\n", errstr ? errstr : "");
+        return 1;
+    }
+    free(errstr);
+
+    if (str_empty(file_ctx->url)) {
+        printf("no url\n");
+        return 1;
+    }
+
+    if (str_empty(file_ctx->file_name)) {
+        file_ctx->file_name = get_file_name(file_ctx->url);
+    }
+
+    if (file_ctx->concurrency <= 0) {
+        printf("concurrency %d must > 0\n", file_ctx->concurrency);
+        return 1;
+    }
 
     file_ctx->fd = open(file_ctx->file_name, O_WRONLY | O_CREAT, 0644);
 
