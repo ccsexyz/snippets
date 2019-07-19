@@ -16,22 +16,88 @@ typedef struct {
     char *propname;
 } ldb_options_t;
 
+static command_t cmds[] = {
+    {
+        "",
+        "fill_cache",
+        cmd_set_bool,
+        offsetof(ldb_options_t, fill_cache),
+        "on"
+    },
+    {
+        "",
+        "verify_checksum",
+        cmd_set_bool,
+        offsetof(ldb_options_t, verify_checksum),
+        "on"
+    },
+    {
+        "",
+        "db_name",
+        cmd_set_str,
+        offsetof(ldb_options_t, db_name),
+        "testdb"
+    },
+    {
+        "",
+        "lru_size",
+        cmd_set_int,
+        offsetof(ldb_options_t, lru_size),
+        "1024"
+    },
+    {
+        "",
+        "max_open_files",
+        cmd_set_int,
+        offsetof(ldb_options_t, max_open_files),
+        "1024"
+    },
+    {
+        "",
+        "sync",
+        NULL,
+        offsetof(ldb_options_t, sync),
+        ""
+    },
+    {
+        "",
+        "bits_per_key",
+        cmd_set_int,
+        offsetof(ldb_options_t, bits_per_key),
+        "12"
+    },
+    {
+        "",
+        "compression",
+        cmd_set_str,
+        offsetof(ldb_options_t, compression),
+        "snappy"
+    },
+    {
+        "",
+        "range_start",
+        cmd_set_str,
+        offsetof(ldb_options_t, range_start),
+        ""
+    },
+    {
+        "",
+        "range_end",
+        cmd_set_str,
+        offsetof(ldb_options_t, range_end),
+        ""
+    },
+    {
+        "",
+        "propname",
+        cmd_set_str,
+        offsetof(ldb_options_t, propname),
+        ""
+    }
+};
+
 static ldb_options_t *ldb_create_options() {
-    ldb_options_t *opt = (ldb_options_t *)malloc(sizeof(ldb_options_t));
-
-    opt->fill_cache = 1;
-    opt->verify_checksum = 1;
-    opt->lru_size = 1024;
-    opt->max_open_files = 1024;
-    opt->sync = 0;
-    opt->bits_per_key = 12;
-
-    opt->db_name = strdup("testdb");
-    opt->compression = strdup("snappy");
-    opt->range_start = strdup("");
-    opt->range_end = strdup("");
-    opt->propname = strdup("");
-
+    ldb_options_t *opt = (ldb_options_t *)calloc(sizeof(ldb_options_t), 1);
     return opt;
 }
 
@@ -42,37 +108,6 @@ static void ldb_options_destroy(ldb_options_t *opt) {
     free(opt->range_end);
     free(opt->propname);
     free(opt);
-}
-
-static void ldb_options_parse(ldb_options_t *opt, key_value_t *kv) {
-    for (key_value_t *p = kv; p; p = p->next) {
-        int onoff = !strcasecmp(p->value, "on");
-        int num = atoi(p->value);
-
-        if (!strcasecmp(p->key, "fill_cache")) {
-            opt->fill_cache = onoff;
-        } else if (!strcasecmp(p->key, "verify_checksum")) {
-            opt->verify_checksum = onoff;
-        } else if (!strcasecmp(p->key, "db_name")) {
-            reset_str_ptr(&opt->db_name, p->value);
-        } else if (!strcasecmp(p->key, "lru_size")) {
-            opt->lru_size = num;
-        } else if (!strcasecmp(p->key, "compression")) {
-            reset_str_ptr(&opt->compression, p->value);
-        } else if (!strcasecmp(p->key, "max_open_files")) {
-            opt->max_open_files = num;
-        } else if (!strcasecmp(p->key, "sync")) {
-            opt->sync = onoff;
-        } else if (!strcasecmp(p->key, "range_start")) {
-            reset_str_ptr(&opt->range_start, p->value);
-        } else if (!strcasecmp(p->key, "range_end")) {
-            reset_str_ptr(&opt->range_end, p->value);
-        } else if (!strcasecmp(p->key, "propname")) {
-            reset_str_ptr(&opt->propname, p->value);
-        } else {
-            printf("unexpected key <%s>\n", p->key);
-        }
-    }
 }
 
 static leveldb_readoptions_t *create_readoptions(ldb_options_t *opt) {
@@ -256,9 +291,17 @@ int main(int argc, const char *argv[]) {
         return 1;
     }
 
-    key_value_t *kv = parse_key_values_from_str_array(&argv[2], argc - 2);
+    char *errstr = NULL;
+    char *type = NULL;
     ldb_options_t *ldb_opt = ldb_create_options();
-    ldb_options_parse(ldb_opt, kv);
+    int rc = parse_command_args(argc, argv, ldb_opt, cmds, array_size(cmds), &errstr, &type);
+    if (rc != 0) {
+        log_fatal("parse command error: %s", errstr ? errstr : "");
+    }
+    if (str_empty(type)) {
+        log_fatal("no valid type");
+    }
+    free(errstr);
 
     leveldb_options_t *opt = leveldb_options_create();
     leveldb_options_set_create_if_missing(opt, 1);
@@ -280,16 +323,18 @@ int main(int argc, const char *argv[]) {
     
     // leveldb_options_set_max_file_size(opt, 1024 * 1024 * 8);
 
-    if (!strcasecmp(argv[1], "repair")) {
+    if (!strcasecmp(type, "repair")) {
         process_ldb_repair(ldb_opt, opt);
     } else {
         char *errstr = NULL;
         leveldb_t *ldb = leveldb_open(opt, ldb_opt->db_name, &errstr);
 
-        process_ldb(ldb, argv[1], errstr, ldb_opt);
+        process_ldb(ldb, type, errstr, ldb_opt);
         leveldb_free(errstr);
 
-        leveldb_close(ldb);
+        if (ldb) {
+            leveldb_close(ldb);
+        }
     }
 
     leveldb_cache_destroy(cache);
@@ -297,8 +342,8 @@ int main(int argc, const char *argv[]) {
         leveldb_filterpolicy_destroy(filter);
     }
     leveldb_options_destroy(opt);
-    free_all_key_values(kv);
     ldb_options_destroy(ldb_opt);
+    free(type);
 
     return 0;
 
