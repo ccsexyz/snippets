@@ -1,7 +1,9 @@
+#define LOG_MIN_LEVEL log_level
 #include "util.h"
 #include <curl/curl.h>
 
 int still_alive = 1;
+static int log_level = LOG_INFO;
 
 typedef struct curl_context_s curl_context_t; 
 
@@ -20,6 +22,7 @@ typedef struct {
     long last_msec;
     size_t last_downloaded_length;
     long speed;
+    const char *log_level_str;
 } file_context_t;
 
 struct curl_context_s {
@@ -52,6 +55,13 @@ static command_t cmds[] = {
         cmd_set_int,
         offsetof(file_context_t, concurrency),
         "8"
+    },
+    {
+        "",
+        "log-level",
+        cmd_set_str,
+        offsetof(file_context_t, log_level_str),
+        "INFO"
     },
     {
         "H",
@@ -300,13 +310,14 @@ static void process_message(CURLM *cm, CURLMsg *msg) {
         CURL *e = msg->easy_handle;
         curl_easy_getinfo(msg->easy_handle, CURLINFO_PRIVATE, &curl_ctx);
         assert(curl_ctx);
-        //fprintf(stderr, "R: %d - %s <%s> part_index=%d\n",
-        //        msg->data.result, curl_easy_strerror(msg->data.result), curl_ctx->file_ctx->url, curl_ctx->part_index);
+        log_debug("R: %d - %s <%s> part_index=%d\n",
+                  msg->data.result, curl_easy_strerror(msg->data.result),
+                  curl_ctx->file_ctx->url, curl_ctx->part_index);
         process_completed_handle(cm, e);
         curl_multi_remove_handle(cm, e);
         curl_easy_cleanup(e);
     } else {
-        fprintf(stderr, "E: CURLMsg (%d)\n", msg->msg);
+        log_info("E: CURLMsg (%d)\n", msg->msg);
     }
 }
 
@@ -354,7 +365,7 @@ static void print_status(file_context_t *file_ctx) {
     char speed[1024];
     get_size_str(file_ctx->speed * 1000, speed, sizeof(speed));
 
-    printf("progress: %.2f%% %s/%s speed: %s/s\n",
+    log_info("progress: %.2f%% %s/%s speed: %s/s",
            (double)file_ctx->downloaded_length/file_ctx->content_length * 100,
            dlnow, dltotal, speed);
 }
@@ -363,7 +374,7 @@ int main(int argc, const char *argv[]) {
     const char *base = basename(strdup(argv[0]));
 
     if (argc < 2) {
-        printf("usage: %s url\n", base);
+        log_alert("usage: %s url", base);
         return 1;
     }
 
@@ -371,14 +382,19 @@ int main(int argc, const char *argv[]) {
     file_context_t *file_ctx = create_file_context();
     int rc = parse_command_args(argc, argv, file_ctx, cmds, array_size(cmds), &errstr, (char **)&file_ctx->url);
     if (rc != 0) {
-        printf("parse command error: %s\n", errstr ? errstr : "");
-        return 1;
+        log_fatal("parse command error: %s", errstr ? errstr : "");
     }
     free(errstr);
 
+    if (!str_empty(file_ctx->log_level_str)) {
+        int level = log_level_str_to_int(file_ctx->log_level_str);
+        if (level >= 0 && level < LOG_MAX_LEVEL) {
+            log_level = level;
+        }
+    }
+
     if (str_empty(file_ctx->url)) {
-        printf("no url\n");
-        return 1;
+        log_fatal("no url");
     }
 
     if (str_empty(file_ctx->file_name)) {
@@ -386,20 +402,17 @@ int main(int argc, const char *argv[]) {
     }
 
     if (file_ctx->concurrency <= 0) {
-        printf("concurrency %d must > 0\n", file_ctx->concurrency);
-        return 1;
+        log_fatal("concurrency %d must > 0", file_ctx->concurrency);
     }
 
     file_ctx->fd = open(file_ctx->file_name, O_WRONLY | O_CREAT, 0644);
 
     if (file_ctx->fd < 0) {
-        printf("open %s error: %s\n", file_ctx->file_name, strerror(errno));
-        exit(EXIT_FAILURE);
+        log_fatal("open %s error: %s\n", file_ctx->file_name, strerror(errno));
     }
 
     CURLM *cm;
     CURLMsg *msg;
-    unsigned int transfers = 0;
     int msgs_left = -1;
 
     curl_global_init(CURL_GLOBAL_ALL);

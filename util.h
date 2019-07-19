@@ -14,6 +14,8 @@
 #include <unistd.h>
 #include <getopt.h>
 #include <stddef.h>
+#include <time.h>
+#include <stdarg.h>
 
 #define array_size(a) (sizeof(a) / sizeof(a[0]))
 
@@ -455,6 +457,127 @@ parse_done:
 
     return rc;
 }
+
+static size_t time_format(char *buf, size_t cap, time_t now) {
+    if (buf == NULL || cap == 0) {
+        return 0;
+    }
+
+    struct tm _tm;
+    localtime_r(&now, &_tm);
+
+    int rc = snprintf(buf, cap, "%d-%02d-%02d %02d:%02d:%02d",
+                      _tm.tm_year + 1900, _tm.tm_mon + 1, _tm.tm_mday,
+                      _tm.tm_hour, _tm.tm_min, _tm.tm_sec);
+
+    if (rc > 0) {
+        return (size_t)rc;
+    }
+
+    return 0;
+}
+
+enum {
+    LOG_VERBOSE,
+    LOG_DEBUG,
+    LOG_INFO,
+    LOG_ERROR,
+    LOG_ALERT,
+    LOG_FATAL,
+    LOG_MAX_LEVEL
+};
+
+static const char *__log_level_str[] = {
+    "VERBOSE",
+    "DEBUG",
+    "INFO",
+    "ERROR",
+    "ALERT",
+    "FATAL"
+};
+
+static int log_level_str_to_int(const char *level_str) {
+    int i = 0;
+
+    for (; i < LOG_MAX_LEVEL; i++) {
+        if (!strcasecmp(level_str, __log_level_str[i])) {
+            break;
+        }
+    }
+
+    return i;
+}
+
+static const char *log_level_int_to_str(int level) {
+    if (level < 0 || level >= LOG_MAX_LEVEL) {
+        return NULL;
+    }
+
+    return __log_level_str[level];
+}
+
+static void log_raw(int logfd, char *buf, size_t cap, int level, const char *file, int line, const char *func, const char *fmt, ...) {
+    if (level >= LOG_MAX_LEVEL || level < 0) {
+        return;
+    }
+
+    if (logfd < 0) {
+        return;
+    }
+
+    char _buf[4096];
+    if (buf == NULL || cap == 0) {
+        buf = _buf;
+        cap = sizeof(_buf);
+    }
+
+    size_t off = 0;
+    struct timeval tv = tv_now();
+
+    off += time_format(buf + off, cap - off, tv.tv_sec);
+    off += snprintf(buf + off, cap - off, ".%06ld ", tv.tv_usec);
+    off += snprintf(buf + off, cap - off, "[%s] %s:%d, %s, ", __log_level_str[level], file, line, func);
+
+    va_list args;
+    va_start(args, fmt);
+    off += vsnprintf(buf + off, cap - off, fmt, args);
+    va_end(args);
+
+    off += snprintf(buf + off, cap - off, "\n");
+
+    write(logfd, buf, off);
+}
+
+#ifndef LOG_MIN_LEVEL
+#define LOG_MIN_LEVEL LOG_INFO
+#endif
+
+#define log(level, fmt, args...) \
+        do { \
+            if ((level) >= (LOG_MIN_LEVEL))\
+                log_raw(STDOUT_FILENO, NULL, 0, (level), (__FILE__), (__LINE__), (__func__), (fmt), ##args);\
+        } while (0)
+
+#define log_verb(fmt, args...) \
+        log(LOG_VERBOSE, (fmt), ##args)
+
+#define log_debug(fmt, args...) \
+        log(LOG_DEBUG, (fmt), ##args)
+
+#define log_info(fmt, args...) \
+        log(LOG_INFO, (fmt), ##args)
+
+#define log_error(fmt, args...) \
+        log(LOG_ERROR, (fmt), ##args)
+
+#define log_alert(fmt, args...) \
+        log(LOG_ALERT, (fmt), ##args)
+
+#define log_fatal(fmt, args...) \
+        do {\
+            log(LOG_FATAL, (fmt), ##args);\
+            exit(1);\
+        } while (0)
 
 #ifdef __cplusplus
 
