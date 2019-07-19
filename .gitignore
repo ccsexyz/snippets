@@ -33,3 +33,6 @@
 
 # MacOSX Debug Symbols
 *.dSYM
+
+# Vim Tags File
+tags

@@ -27,10 +27,46 @@ static double tv_sub_msec_double(struct timeval end, struct timeval start) {
         double)(end.tv_usec - start.tv_usec)) / 1000;
 }
 
+static long tv_sub_msec(struct timeval end, struct timeval start) {
+    return (end.tv_sec - start.tv_sec) * 1000 + (end.tv_usec - start.tv_usec) / 1000;
+}
+
 static struct timeval tv_now() {
     struct timeval tv;
     gettimeofday(&tv, NULL);
     return tv;
+}
+
+static long tv_now_msec() {
+    struct timeval tv = tv_now();
+    return tv.tv_sec * 1000 + tv.tv_usec / 1000;
+}
+
+static void get_size_str(size_t sz, char *buf, size_t cap) {
+    double n = 0.0;
+    const char *unit = "";
+    static const size_t kb = 1UL << 10;
+    static const size_t mb = 1UL << 20;
+    static const size_t gb = 1UL << 30;
+    static const size_t tb = 1UL << 40;
+
+    if (sz < kb) {
+        n = sz;
+    } else if (sz < mb) {
+        n = sz / (double)kb;
+        unit = "KB";
+    } else if (sz < gb) {
+        n = sz / (double)mb;
+        unit = "MB";
+    } else if (sz < tb) {
+        n = sz / (double)gb;
+        unit = "GB";
+    } else {
+        n = sz / (double)tb;
+        unit = "TB";
+    }
+
+    snprintf(buf, cap, "%.1f%s", n, unit);
 }
 
 typedef struct key_value_s key_value_t;

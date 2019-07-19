@@ -16,6 +16,10 @@ typedef struct {
     int context_num;
     int concurrency;
     key_value_t *headers;
+    size_t downloaded_length;
+    long last_msec;
+    size_t last_downloaded_length;
+    long speed;
 } file_context_t;
 
 struct curl_context_s {
@@ -24,6 +28,7 @@ struct curl_context_s {
     int part_index;
     size_t offset;
     file_context_t *file_ctx;
+    double dlnow;
 };
 
 static command_t cmds[] = {
@@ -132,6 +137,14 @@ static size_t probe_header_callback(char *data, size_t size, size_t nitems, void
     return nitems * size;
 }
 
+static int progress_callback(void *ctx, double dltotal, double dlnow, double ultotal, double ulnow) {
+    curl_context_t *curl_ctx = (curl_context_t *)ctx;
+    file_context_t *file_ctx = curl_ctx->file_ctx;
+    file_ctx->downloaded_length += dlnow - curl_ctx->dlnow; 
+    curl_ctx->dlnow = dlnow;
+    return 0;
+}
+
 static void add_range_header(CURL *eh, size_t start, size_t end) {
     char range_buf[1024];
     snprintf(range_buf, sizeof(range_buf), "%ld-%ld", start, end);
@@ -177,13 +190,17 @@ static void add_transfer(CURLM *cm, curl_context_t *curl_ctx) {
         curl_easy_setopt(eh, CURLOPT_HEADERFUNCTION, probe_header_callback);
         curl_easy_setopt(eh, CURLOPT_HEADERDATA, curl_ctx);
         add_range_header(eh, 0, 0);
-    } else if (curl_ctx->naive) {
-        curl_easy_setopt(eh, CURLOPT_WRITEFUNCTION, write_cb);
     } else {
         curl_easy_setopt(eh, CURLOPT_WRITEFUNCTION, write_cb);
-        size_t start = curl_ctx->offset;
-        size_t end = start + size_of_part(file_ctx, curl_ctx->part_index) - 1;
-        add_range_header(eh, start, end);
+        curl_easy_setopt(eh, CURLOPT_NOPROGRESS, 0);
+        curl_easy_setopt(eh, CURLOPT_PROGRESSFUNCTION, progress_callback);
+        curl_easy_setopt(eh, CURLOPT_PROGRESSDATA, curl_ctx);
+
+        if (!curl_ctx->naive) {
+            size_t start = curl_ctx->offset;
+            size_t end = start + size_of_part(file_ctx, curl_ctx->part_index) - 1;
+            add_range_header(eh, start, end);
+        }
     }
 
     curl_easy_setopt(eh, CURLOPT_WRITEDATA, curl_ctx);
@@ -283,8 +300,8 @@ static void process_message(CURLM *cm, CURLMsg *msg) {
         CURL *e = msg->easy_handle;
         curl_easy_getinfo(msg->easy_handle, CURLINFO_PRIVATE, &curl_ctx);
         assert(curl_ctx);
-        fprintf(stderr, "R: %d - %s <%s> part_index=%d\n",
-                msg->data.result, curl_easy_strerror(msg->data.result), curl_ctx->file_ctx->url, curl_ctx->part_index);
+        //fprintf(stderr, "R: %d - %s <%s> part_index=%d\n",
+        //        msg->data.result, curl_easy_strerror(msg->data.result), curl_ctx->file_ctx->url, curl_ctx->part_index);
         process_completed_handle(cm, e);
         curl_multi_remove_handle(cm, e);
         curl_easy_cleanup(e);
@@ -297,6 +314,49 @@ static file_context_t *create_file_context() {
     file_context_t *file_ctx = (file_context_t *)calloc(sizeof(file_context_t), 1);
 
     return file_ctx;
+}
+
+static void print_status(file_context_t *file_ctx) {
+    if (file_ctx->content_length == 0) {
+        return;
+    }
+
+    long now_msec = tv_now_msec();
+
+    if (file_ctx->last_msec) {
+        long msec_taken = now_msec - file_ctx->last_msec;
+
+        if (file_ctx->speed == 0) {
+            if (msec_taken < 100) {
+                return;
+            }
+        } else {
+            if (msec_taken < 1000) {
+                return;
+            }
+        }
+
+        if (file_ctx->downloaded_length > 0) {
+            size_t download_length = file_ctx->downloaded_length - file_ctx->last_downloaded_length;
+            if (msec_taken > 0) {
+                file_ctx->speed = download_length / msec_taken;
+            }
+        }
+    }
+
+    file_ctx->last_msec = now_msec;
+    file_ctx->last_downloaded_length = file_ctx->downloaded_length;
+
+    char dlnow[1024];
+    char dltotal[1024];
+    get_size_str(file_ctx->downloaded_length, dlnow, sizeof(dlnow));
+    get_size_str(file_ctx->content_length, dltotal, sizeof(dltotal));
+    char speed[1024];
+    get_size_str(file_ctx->speed * 1000, speed, sizeof(speed));
+
+    printf("progress: %.2f%% %s/%s speed: %s/s\n",
+           (double)file_ctx->downloaded_length/file_ctx->content_length * 100,
+           dlnow, dltotal, speed);
 }
 
 int main(int argc, const char *argv[]) {
@@ -353,6 +413,8 @@ int main(int argc, const char *argv[]) {
         while((msg = curl_multi_info_read(cm, &msgs_left))) {
             process_message(cm, msg);
         }
+
+        print_status(file_ctx);
 
         if (still_alive) {
             curl_multi_wait(cm, NULL, 0, 1000, NULL);
