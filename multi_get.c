@@ -23,6 +23,8 @@ typedef struct {
     size_t last_downloaded_length;
     long speed;
     const char *log_level_str;
+    int follow_redirection;
+    int max_follow_times;
 } file_context_t;
 
 struct curl_context_s {
@@ -69,6 +71,20 @@ static command_t cmds[] = {
         cmd_set_strlist,
         offsetof(file_context_t, headers),
         ""
+    },
+    {
+        "l",
+        "",
+        NULL,
+        offsetof(file_context_t, follow_redirection),
+        ""
+    },
+    {
+        "",
+        "max-follow",
+        cmd_set_int,
+        offsetof(file_context_t, max_follow_times),
+        "-1"
     }
 };
 
@@ -194,6 +210,11 @@ static void add_transfer(CURLM *cm, curl_context_t *curl_ctx) {
     curl_easy_setopt(eh, CURLOPT_URL, file_ctx->url);
     curl_easy_setopt(eh, CURLOPT_PRIVATE, curl_ctx);
     add_customized_headers(eh, file_ctx->headers);
+
+    if (file_ctx->follow_redirection) {
+        curl_easy_setopt(eh, CURLOPT_FOLLOWLOCATION, 1L);
+        curl_easy_setopt(eh, CURLOPT_MAXREDIRS, file_ctx->max_follow_times);
+    }
 
     if (curl_ctx->probing) {
         curl_easy_setopt(eh, CURLOPT_WRITEFUNCTION, dummy_write_cb);
