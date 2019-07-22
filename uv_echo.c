@@ -1,7 +1,19 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <assert.h>
+#include "util.h"
 #include <uv.h>
+
+struct config {
+    int local_port;
+} conf;
+
+static command_t cmds[] = {
+    {
+        "l",
+        "local_port",
+        cmd_set_int,
+        offsetof(struct config, local_port),
+        "6090"
+    }
+};
 
 typedef struct {
     uv_write_t req;
@@ -114,18 +126,24 @@ static int create_tcp_echo_server(uv_loop_t *loop, int port) {
     return 0;
 }
 
-int main(void) {
+int main(int argc, char **argv) {
     uv_loop_t *loop = uv_default_loop();
     assert(loop);
     default_loop = loop;
 
-    int rc = create_tcp_echo_server(loop, 8090);
+    char *errstr = NULL;
+    int rc = parse_command_args(argc, (const char **)argv, &conf, cmds, array_size(cmds), &errstr, NULL);
+    if (rc != 0) {
+        log_fatal("parse command error: %s", errstr ? errstr : "");
+    }
+    free(errstr);
+
+    rc = create_tcp_echo_server(loop, conf.local_port);
     assert(rc == 0);
 
     rc = uv_run(loop, UV_RUN_DEFAULT);
     assert(rc == 0);
 
-    printf("Hello World! loop = %p\n", loop);
     return 0;
 }
 

@@ -16,8 +16,45 @@
 #include <stddef.h>
 #include <time.h>
 #include <stdarg.h>
+#include <stdint.h>
+#include <arpa/inet.h>
 
 #define array_size(a) (sizeof(a) / sizeof(a[0]))
+
+static int split_host_port(const char *hostport, char *host, size_t hostlen, int *pport) {
+    if (hostport == NULL || strlen(hostport) <= 1) {
+        return 1;
+    }
+
+    char *colon = strstr(hostport, ":");
+    if (!colon) {
+        return 1;
+    }
+
+    char *port_str = colon + 1;
+    if (*port_str == '\0') {
+        return 1;
+    }
+
+    size_t len = colon - hostport;
+    if (len + 1 > hostlen || host == NULL) {
+        return 1;
+    }
+
+    memcpy(host, hostport, len);
+    host[len] = '\0';
+
+    int port = atoi(port_str);
+    if (port > 65535 || port < 0) {
+        return 1;
+    }
+
+    if (pport) {
+        *pport = port;
+    }
+
+    return 0;
+}
 
 static void reset_str_ptr(char **pstr, char *new) {
     free(*pstr);
@@ -255,7 +292,9 @@ static int cmd_set_size(void *p, const char *value, char **errstr) {
         return -2;
     }
 
-    endp++;
+    if (shift > 0) {
+        endp++;
+    }
 
     if (*endp != '\0') {
         set_errstr(errstr, "invalid size");
