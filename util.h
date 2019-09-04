@@ -18,6 +18,7 @@
 #include <stdarg.h>
 #include <stdint.h>
 #include <arpa/inet.h>
+#include <netdb.h>
 
 #define array_size(a) (sizeof(a) / sizeof(a[0]))
 
