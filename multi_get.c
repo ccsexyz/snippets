@@ -25,6 +25,7 @@ typedef struct {
     const char *log_level_str;
     int follow_redirection;
     int max_follow_times;
+    int compressed;
 } file_context_t;
 
 struct curl_context_s {
@@ -50,6 +51,13 @@ static command_t cmds[] = {
         cmd_set_size,
         offsetof(file_context_t, part_size),
         "2M"
+    },
+    {
+        "",
+        "compressed",
+        NULL,
+        offsetof(file_context_t, compressed),
+        ""
     },
     {
         "c",
@@ -214,6 +222,10 @@ static void add_transfer(CURLM *cm, curl_context_t *curl_ctx) {
     if (file_ctx->follow_redirection) {
         curl_easy_setopt(eh, CURLOPT_FOLLOWLOCATION, 1L);
         curl_easy_setopt(eh, CURLOPT_MAXREDIRS, file_ctx->max_follow_times);
+    }
+
+    if (file_ctx->compressed) {
+        curl_easy_setopt(eh, CURLOPT_ACCEPT_ENCODING, "deflate, gzip");
     }
 
     if (curl_ctx->probing) {
