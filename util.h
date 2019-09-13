@@ -326,6 +326,7 @@ struct command_s {
     command_set_handler set_handler;
     size_t offset;
     const char *default_value;
+    const char *usage;
 };
 
 static const char *name_of_command(command_t *cmd) {
@@ -409,15 +410,20 @@ static void build_longopts(command_t *cmds, int ncmd, struct option *longopts, i
 }
 
 static char *build_optstr(command_t *cmds, int ncmd) {
-    size_t cap = 3 * (ncmd + 1);
+    size_t cap = 3 * (ncmd + 2);
     char *orig_optstr = (char *)calloc(cap, 1);
     char *optstr = orig_optstr;
+    int has_help_command = 0;
 
     for (int i = 0; i < ncmd; i++) {
         command_t *cmd = &cmds[i];
 
         if (str_empty(cmd->short_name)) {
             continue;
+        }
+
+        if (!strcmp(cmd->short_name, "h")) {
+            has_help_command = 1;
         }
 
         optstr += snprintf(optstr, orig_optstr + cap - optstr, "%s", cmd->short_name);
@@ -427,7 +433,59 @@ static char *build_optstr(command_t *cmds, int ncmd) {
         }
     }
 
+    if (!has_help_command) {
+        optstr += snprintf(optstr, orig_optstr + cap - optstr, "h");
+    }
+
     return orig_optstr;
+}
+
+static void output_command_usage(command_t *cmds, int ncmd) {
+    int max_long_name_len = 0;
+
+    for (int i = 0; i < ncmd; i++) {
+        command_t *cmd = &cmds[i];
+
+        if (str_empty(cmd->long_name)) {
+            continue;
+        }
+
+        int name_len = strlen(cmd->long_name);
+        if (name_len > max_long_name_len) {
+            max_long_name_len = name_len;
+        }
+    }
+
+    for (int i = 0; i < ncmd; i++) {
+        command_t *cmd = &cmds[i];
+
+        int has_short_name = !str_empty(cmd->short_name);
+        int has_long_name = !str_empty(cmd->long_name);
+        int has_usage = !str_empty(cmd->usage);
+        int has_default_value = !str_empty(cmd->default_value);
+
+        if (has_short_name) {
+            printf("-%s, ", cmd->short_name);
+        } else {
+            printf("    ");
+        }
+
+        if (has_long_name) {
+            printf("--%-*s", max_long_name_len + 1, cmd->long_name);
+        } else {
+            printf("%-*s", max_long_name_len + 3, "");
+        }
+
+        if (has_usage) {
+            printf("%s", cmd->usage);
+        }
+
+        if (has_default_value) {
+            printf(" (default: %s)", cmd->default_value);
+        }
+
+        printf("\n");
+    }
 }
 
 static int parse_command_args(int argc, const char **argv, void *cfg, command_t *cmds, int ncmd, char **errstr, char **extra_arg) {
@@ -475,6 +533,11 @@ static int parse_command_args(int argc, const char **argv, void *cfg, command_t 
             }
 
             if (!found) {
+                if (c == 'h') {
+                    output_command_usage(cmds, ncmd);
+                    exit(1);
+                }
+
                 rc = -1;
                 set_errstr(errstr, "invalid command");
                 goto parse_done;

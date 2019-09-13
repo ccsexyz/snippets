@@ -43,56 +43,64 @@ static command_t cmds[] = {
         "file_name",
         cmd_set_str,
         offsetof(file_context_t, file_name),
-        ""
+        "",
+        "set the filename of output file, if not set, set by url path"
     },
     {
         "",
         "part_size",
         cmd_set_size,
         offsetof(file_context_t, part_size),
-        "2M"
+        "2M",
+        "range part size"
     },
     {
         "",
         "compressed",
         NULL,
         offsetof(file_context_t, compressed),
-        ""
+        "",
+        "add compressed accept-encoding header"
     },
     {
         "c",
         "conn",
         cmd_set_int,
         offsetof(file_context_t, concurrency),
-        "8"
+        "8",
+        "number of concurrent connections"
     },
     {
         "",
         "log-level",
         cmd_set_str,
         offsetof(file_context_t, log_level_str),
-        "INFO"
+        "INFO",
+        "log level"
     },
     {
         "H",
         "header",
         cmd_set_strlist,
         offsetof(file_context_t, headers),
-        ""
+        "",
+        "add customized HTTP Header"
     },
     {
         "l",
         "",
         NULL,
         offsetof(file_context_t, follow_redirection),
-        ""
+        "",
+        "enable follow redirection"
     },
     {
         "",
         "max-follow",
         cmd_set_int,
         offsetof(file_context_t, max_follow_times),
-        "-1"
+        "-1",
+        "max follow times, less than zero means no limit"
     }
 };
 
