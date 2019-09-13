@@ -663,10 +663,14 @@ static void log_raw(int logfd, char *buf, size_t cap, int level, const char *fil
 #define LOG_MIN_LEVEL LOG_INFO
 #endif
 
+#ifndef TRIM_FILE_NAME
+#define TRIM_FILE_NAME(name) ({ const char *x = strrchr(name, '/'); const char *res = x ? x + 1 : name; res; })
+#endif
+
 #define log(level, fmt, args...) \
         do { \
             if ((level) >= (LOG_MIN_LEVEL))\
-                log_raw(STDOUT_FILENO, NULL, 0, (level), (__FILE__), (__LINE__), (__func__), (fmt), ##args);\
+                log_raw(STDOUT_FILENO, NULL, 0, (level), TRIM_FILE_NAME(__FILE__), (__LINE__), (__func__), (fmt), ##args);\
         } while (0)
 
 #define log_verb(fmt, args...) \

@@ -205,10 +205,25 @@ static const char *get_file_name(const char *url) {
     return file_name;
 }
 
+static int check_if_header_should_ignore(const char *header_name) {
+    int rc = 0;
+
+    // ignore range header
+    if (!strncasecmp(header_name, "Range:", strlen("Range:"))) {
+        rc = 1;
+    }
+
+    return rc;
+}
+
 static void add_customized_headers(CURL *eh, key_value_t *headers) {
     struct curl_slist *chunk = NULL;
 
     for (key_value_t *p = headers; p; p = p->next) {
+        if (check_if_header_should_ignore(p->key)) {
+            continue;
+        }
+
         chunk = curl_slist_append(chunk, p->key);
     }
 
