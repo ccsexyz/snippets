@@ -4,6 +4,10 @@
 #define _GNU_SOURCE
 #endif
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
@@ -31,7 +35,7 @@ static int split_host_port(const char *hostport, char *host, size_t hostlen, int
         return 1;
     }
 
-    char *colon = strstr(hostport, ":");
+    char *colon = strstr((char *)hostport, ":");
     if (!colon) {
         return 1;
     }
@@ -61,9 +65,9 @@ static int split_host_port(const char *hostport, char *host, size_t hostlen, int
     return 0;
 }
 
-static void reset_str_ptr(char **pstr, char *new) {
+static void reset_str_ptr(char **pstr, char *new_str) {
     free(*pstr);
-    *pstr = strdup(new);
+    *pstr = strdup(new_str);
 }
 
 static double tv_sub_msec_double(struct timeval end, struct timeval start) {
@@ -131,7 +135,7 @@ static key_value_t *parse_key_value(const char *str) {
         return NULL;
     }
 
-    char *equal = strstr(str, "=");
+    char *equal = strstr((char *)str, "=");
     if (!equal || equal == str || equal == str + len - 1) {
         return NULL;
     }
@@ -624,6 +628,7 @@ static void log_raw(int logfd, char *buf, size_t cap, int level, const char *fil
         } while (0)
 
 #ifdef __cplusplus
+}
 
 #include <iostream>
 #include <functional>

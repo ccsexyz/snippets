@@ -1,0 +1,49 @@
+cmake_minimum_required(VERSION 3.6)
+project(snippets)
+
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_C_STANDARD 99)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O2")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -O2")
+find_package(leveldb)
+find_package(rocksdb)
+find_package(curl)
+find_package(uv)
+find_package(pcre)
+find_package(re2)
+
+add_executable(test_keepalive "test_keepalive.c")
+
+add_executable(bench_clock "bench_clock.c")
+
+add_executable(ldb "ldb.c")
+target_link_libraries(ldb leveldb)
+
+add_executable(multi_demo "multi_demo.c")
+target_link_libraries(multi_demo curl)
+
+add_executable(multi_get "multi_get.c")
+target_link_libraries(multi_get curl)
+
+add_executable(multi_uv "multi_uv.c")
+target_link_libraries(multi_uv curl)
+target_link_libraries(multi_uv uv)
+
+add_executable(naive_curl "naive_curl.c")
+target_link_libraries(naive_curl curl)
+
+add_executable(pcre_demo "pcre_demo.c")
+target_link_libraries(pcre_demo pcre)
+
+add_executable(rdb "rdb.c")
+target_link_libraries(rdb rocksdb)
+
+add_executable(sendfile "sendfile.c")
+
+add_executable(sysinfo "sysinfo.c")
+
+add_executable(uv_echo "uv_echo.c")
+target_link_libraries(uv_echo uv)
+
+add_executable(re2_demo "re2_demo.cpp")
+target_link_libraries(re2_demo re2)
