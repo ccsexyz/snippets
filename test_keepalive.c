@@ -3,6 +3,7 @@
 typedef struct {
     const char *host;
     const char *remote_addr;
+    int sleep_second;
 } config;
 
 static config cfg;
@@ -20,6 +21,13 @@ static command_t cmds[] = {
         "remote_addr",
         cmd_set_str,
         offsetof(config, remote_addr),
+        ""
+    },
+    {
+        "s",
+        "",
+        cmd_set_int,
+        offsetof(config, sleep_second),
         ""
     }
 };
@@ -87,6 +95,35 @@ static void do_wait(int sockfd) {
     log_info("wait stop!");
 }
 
+static void print_peer_info(int sockfd) {
+    struct sockaddr_storage storage;
+    socklen_t slt = sizeof(storage);
+    int rc = getpeername(sockfd, (struct sockaddr *)&storage, &slt);
+
+    if (rc != 0) {
+        log_info("getpeername error, reason %s", strerror(errno));
+        return;
+    }
+
+    char ip[128];
+    int port;
+
+    if (storage.ss_family == AF_INET) {
+        struct sockaddr_in *s = (struct sockaddr_in *)&storage;
+        inet_ntop(AF_INET, &s->sin_addr.s_addr, ip, sizeof(ip));
+        port = ntohs(s->sin_port);
+    } else if (storage.ss_family == AF_INET6) {
+        struct sockaddr_in6 *s6 = (struct sockaddr_in6 *)&storage;
+        inet_ntop(AF_INET6, &s6->sin6_addr.s6_addr, ip, sizeof(ip));
+        port = ntohs(s6->sin6_port);
+    } else {
+        log_info("invalid ss_family %d", storage.ss_family);
+        return;
+    }
+
+    log_info("getpeername return ip %s port %u", ip, port);
+}
+
 static void test_keepalive() {
     struct addrinfo hints;
     memset(&hints, 0, sizeof(hints));
@@ -145,6 +182,11 @@ static void test_keepalive() {
     rc = do_request(sockfd);
     if (rc == 0) {
         do_wait(sockfd);
+    }
+
+    if (cfg.sleep_second > 0) {
+        sleep(cfg.sleep_second);
+        print_peer_info(sockfd);
     }
 
     close(sockfd);
