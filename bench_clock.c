@@ -28,7 +28,31 @@ static void bench_gettimeofday() {
     printf("bench gettimeofday taken %.2f ms, %.2f ns/op\n", ms_taken, ms_taken / 10);
 }
 
+static void bench_coarse_diff() {
+    const int N = 100000;
+    double total_msec_double = 0;
+
+    for (int i = 0; i < N; i++) {
+        struct timespec spec;
+        struct timespec spec_coarse;
+
+        clock_gettime(CLOCK_REALTIME, &spec);
+        clock_gettime(CLOCK_REALTIME_COARSE, &spec_coarse);
+
+        double msec_double = ts_sub_msec_double(spec_coarse, spec);
+        if (msec_double < 0) {
+            msec_double = -msec_double;
+        }
+
+        total_msec_double += msec_double;
+    }
+
+    printf("%s = %.3g ms\n", __func__, total_msec_double / N);
+}
+
 int main(void) {
+    bench_coarse_diff();
+
     BENCH_CLOCKGETTIME(CLOCK_REALTIME);
     BENCH_CLOCKGETTIME(CLOCK_REALTIME_COARSE);
     BENCH_CLOCKGETTIME(CLOCK_MONOTONIC);
@@ -45,14 +69,15 @@ int main(void) {
 
 /*
  * Intel(R) Core(TM) i7-8700 CPU @ 3.20GHz
-$ gcc -O2 -o bench_clock bench_clock.c; ./bench_clock
-bench CLOCK_REALTIME taken 144.53 ms, 14.45 ns/op
-bench CLOCK_REALTIME_COARSE taken 36.12 ms, 3.61 ns/op
-bench CLOCK_MONOTONIC taken 153.77 ms, 15.38 ns/op
-bench CLOCK_MONOTONIC_COARSE taken 37.50 ms, 3.75 ns/op
-bench CLOCK_MONOTONIC_RAW taken 3342.96 ms, 334.30 ns/op
-bench CLOCK_BOOTTIME taken 3353.16 ms, 335.32 ns/op
-bench CLOCK_PROCESS_CPUTIME_ID taken 3859.14 ms, 385.91 ns/op
-bench CLOCK_THREAD_CPUTIME_ID taken 3821.97 ms, 382.20 ns/op
-bench gettimeofday taken 157.60 ms, 15.76 ns/op
-*/
+$ gcc -g -O2 -o bench_clock bench_clock.c -std=c99; ./bench_clock
+bench_coarse_diff = 2.79 ms
+bench CLOCK_REALTIME taken 150.66 ms, 15.07 ns/op
+bench CLOCK_REALTIME_COARSE taken 38.59 ms, 3.86 ns/op
+bench CLOCK_MONOTONIC taken 147.96 ms, 14.80 ns/op
+bench CLOCK_MONOTONIC_COARSE taken 38.64 ms, 3.86 ns/op
+bench CLOCK_MONOTONIC_RAW taken 2350.82 ms, 235.08 ns/op
+bench CLOCK_BOOTTIME taken 2361.18 ms, 236.12 ns/op
+bench CLOCK_PROCESS_CPUTIME_ID taken 2811.25 ms, 281.13 ns/op
+bench CLOCK_THREAD_CPUTIME_ID taken 2781.36 ms, 278.14 ns/op
+bench gettimeofday taken 157.63 ms, 15.76 ns/op
+ */

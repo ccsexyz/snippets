@@ -79,6 +79,15 @@ static long tv_sub_msec(struct timeval end, struct timeval start) {
     return (end.tv_sec - start.tv_sec) * 1000 + (end.tv_usec - start.tv_usec) / 1000;
 }
 
+static double ts_sub_msec_double(struct timespec end, struct timespec start) {
+    return ((double)(end.tv_sec - start.tv_sec)) * 1000 + ((
+        double)(end.tv_nsec - start.tv_nsec)) / 1000000;
+}
+
+static long ts_sub_msec(struct timespec end, struct timespec start) {
+    return (end.tv_sec - start.tv_sec) * 1000 + (end.tv_nsec - start.tv_nsec) / 1000000;
+}
+
 static struct timeval tv_now() {
     struct timeval tv;
     gettimeofday(&tv, NULL);
