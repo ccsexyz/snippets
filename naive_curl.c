@@ -11,7 +11,7 @@ static int progress_callback(void *ctx, double dltotal, double dlnow, double ult
     fflush(stdout);
     struct timeval tv;
     gettimeofday(&tv, NULL);
-    printf("[%ld:%06d] progress %.2f %%\n", tv.tv_sec, tv.tv_usec, dlnow / dltotal * 100.0);
+    printf("[%ld:%06ld] progress %.2f %%\n", tv.tv_sec, tv.tv_usec, dlnow / dltotal * 100.0);
     fflush(stdout);
     return 0;
 }

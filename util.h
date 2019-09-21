@@ -190,7 +190,7 @@ static int str_empty(const char *str) {
     return str == NULL || strlen(str) == 0;
 }
 
-static void set_errstr(char **errstr, char *msg) {
+static void set_errstr(char **errstr, const char *msg) {
     if (errstr == NULL) {
         return;
     }
