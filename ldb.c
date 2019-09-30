@@ -8,6 +8,8 @@ typedef struct {
     int max_open_files;
     int sync;
     int bits_per_key;
+    long write_buffer_size;
+    long max_file_size;
 
     char *db_name;
     char *compression;
@@ -89,6 +91,20 @@ static command_t cmds[] = {
     },
     {
         "",
+        "write_buffer_size",
+        cmd_set_size,
+        offsetof(ldb_options_t, write_buffer_size),
+        "16m"
+    },
+    {
+        "",
+        "max_file_size",
+        cmd_set_size,
+        offsetof(ldb_options_t, max_file_size),
+        "16m"
+    },
+    {
+        "",
         "propname",
         cmd_set_str,
         offsetof(ldb_options_t, propname),
@@ -140,7 +156,7 @@ static void ldb_get(leveldb_t *ldb, const char *db_name, const char *line, level
 
     char *value = leveldb_get(ldb, ropt, line, strlen(line), &vallen, &errstr);
 
-    printf("leveldb_get key <%s> %s, vallen = %lu, errstr = %s, taken %.2fms\n", line, value ? "HIT" : "MISS", vallen, errstr ? errstr : "errstr is empty", tv_sub_msec_double(tv_now(), tv));
+    log_info("leveldb_get key <%s> %s, vallen = %lu, errstr = %s, taken %.2fms", line, value ? "HIT" : "MISS", vallen, errstr ? errstr : "errstr is empty", tv_sub_msec_double(tv_now(), tv));
 
     leveldb_free(errstr);
     leveldb_free(value);
@@ -161,9 +177,7 @@ static void process_ldb_get(leveldb_t *ldb, ldb_options_t *opt) {
             *enter = '\0';
         }
 
-        for (int i = 0; i < 1000; i++) {
-            ldb_get(ldb, opt->db_name, line, ropt);
-        }
+        ldb_get(ldb, opt->db_name, line, ropt);
     }
 
     leveldb_readoptions_destroy(ropt);
@@ -176,10 +190,10 @@ static void ldb_put(leveldb_t *ldb, const char *db_name, const char *line, level
     leveldb_put(ldb, wopt, line, strlen(line), line, strlen(line), &errstr);
 
     if (errstr) {
-        printf("leveldb_put key <%s> to db %s error: %s\n", line, db_name, errstr);
+        log_info("leveldb_put key <%s> to db %s error: %s", line, db_name, errstr);
         leveldb_free(errstr);
     } else {
-        printf("leveldb_put key <%s> to db %s taken %.2fms\n", line, db_name, tv_sub_msec_double(tv_now(), tv));
+        // log_info("leveldb_put key <%s> to db %s taken %.2fms", line, db_name, tv_sub_msec_double(tv_now(), tv));
     }
 }
 
@@ -218,7 +232,7 @@ static void process_ldb_keys(leveldb_t *ldb, ldb_options_t *opt) {
         tv = tv_end;
 
         if (key) {
-            printf("process key <%.*s> klen = %lu, taken %.2fms\n", (int)klen, key, klen, ms_taken);
+            log_info("process key <%.*s> klen = %lu, taken %.2fms", (int)klen, key, klen, ms_taken);
         }
 
         leveldb_iter_next(iter);
@@ -229,20 +243,20 @@ static void process_ldb_keys(leveldb_t *ldb, ldb_options_t *opt) {
 }
 
 static void process_ldb_compact_range(leveldb_t *ldb, ldb_options_t *opt) {
-    printf("start to compact_range start <%s> end <%s>\n", opt->range_start, opt->range_end);
+    log_info("start to compact_range start <%s> end <%s>", opt->range_start, opt->range_end);
 
     struct timeval tv_start = tv_now();
     leveldb_compact_range(ldb, opt->range_start, strlen(opt->range_start), opt->range_end, strlen(opt->range_end));
-    printf("compact finished! taken %.2fms\n", tv_sub_msec_double(tv_now(), tv_start));
+    log_info("compact finished! taken %.2fms", tv_sub_msec_double(tv_now(), tv_start));
 }
 
 static void process_ldb_property(leveldb_t *ldb, ldb_options_t *opt) {
     char *value = leveldb_property_value(ldb, opt->propname);
 
     if (value == NULL) {
-        printf("get property <%s> but return NULL\n", opt->propname);
+        log_info("get property <%s> but return NULL", opt->propname);
     } else {
-        printf("%s\n", value);
+        log_info("%s", value);
         leveldb_free(value);
     }
 }
@@ -253,7 +267,7 @@ static void process_ldb_repair(ldb_options_t *ldb_opt, leveldb_options_t *opt) {
     struct timeval tv_start = tv_now();
     leveldb_repair_db(opt, ldb_opt->db_name, &errstr);
 
-    printf("repair db <%s> %s! taken %.2fms", ldb_opt->db_name, errstr == NULL ? "successful!" : errstr, tv_sub_msec_double(tv_now(), tv_start));
+    log_info("repair db <%s> %s! taken %.2fms", ldb_opt->db_name, errstr == NULL ? "successful!" : errstr, tv_sub_msec_double(tv_now(), tv_start));
     leveldb_free(errstr);
 }
 
@@ -262,12 +276,12 @@ static void process_ldb(leveldb_t *ldb, const char *typ, const char *errstr, ldb
         if (errstr == NULL) {
             errstr = "no error str";
         }
-        printf("open %s error: %s\n", opt->db_name, errstr);
+        log_info("open %s error: %s", opt->db_name, errstr);
         return;
     }
 
     if (typ == NULL) {
-        printf("type is NULL, impossible!\n");
+        log_info("type is NULL, impossible!");
     } else if (!strcasecmp(typ, "get")) {
         process_ldb_get(ldb, opt);
     } else if (!strcasecmp(typ, "put")) {
@@ -279,7 +293,7 @@ static void process_ldb(leveldb_t *ldb, const char *typ, const char *errstr, ldb
     } else if (!strcasecmp(typ, "property")) {
         process_ldb_property(ldb, opt);
     } else {
-        printf("invalid type %s\n", typ);
+        log_info("invalid type %s", typ);
     }
 }
 
@@ -306,6 +320,9 @@ int main(int argc, const char *argv[]) {
     leveldb_options_t *opt = leveldb_options_create();
     leveldb_options_set_create_if_missing(opt, 1);
     leveldb_options_set_max_open_files(opt, ldb_opt->max_open_files);
+    leveldb_options_set_write_buffer_size(opt, ldb_opt->write_buffer_size);
+    // leveldb_options_set_max_file_size(opt, ldb_opt->max_file_size);
+    log_info("write_buffer_size is %ld", ldb_opt->write_buffer_size);
     if (!strcasecmp(ldb_opt->compression, "snappy")) {
         leveldb_options_set_compression(opt, leveldb_snappy_compression);
     }
@@ -321,8 +338,6 @@ int main(int argc, const char *argv[]) {
         leveldb_options_set_cache(opt, cache);
     }
     
-    // leveldb_options_set_max_file_size(opt, 1024 * 1024 * 8);
-
     if (!strcasecmp(type, "repair")) {
         process_ldb_repair(ldb_opt, opt);
     } else {

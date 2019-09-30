@@ -10,7 +10,7 @@ static config cfg;
 
 static command_t cmds[] = {
     {
-        "h",
+        "",
         "host",
         cmd_set_str,
         offsetof(config, host),
@@ -25,7 +25,7 @@ static command_t cmds[] = {
     },
     {
         "s",
-        "",
+        "sleep_second",
         cmd_set_int,
         offsetof(config, sleep_second),
         ""

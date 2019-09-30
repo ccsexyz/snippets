@@ -140,7 +140,7 @@ static void ldb_get(rocksdb_t *ldb, const char *db_name, const char *line, rocks
 
     char *value = rocksdb_get(ldb, ropt, line, strlen(line), &vallen, &errstr);
 
-    printf("rocksdb_get key <%s> %s, vallen = %lu, errstr = %s, taken %.2fms\n", line, value ? "HIT" : "MISS", vallen, errstr ? errstr : "errstr is empty", tv_sub_msec_double(tv_now(), tv));
+    log_info("rocksdb_get key <%s> %s, vallen = %lu, errstr = %s, taken %.2fms", line, value ? "HIT" : "MISS", vallen, errstr ? errstr : "errstr is empty", tv_sub_msec_double(tv_now(), tv));
 
     rocksdb_free(errstr);
     rocksdb_free(value);
@@ -172,14 +172,18 @@ static void process_ldb_get(rocksdb_t *ldb, ldb_options_t *opt) {
 static void ldb_put(rocksdb_t *ldb, const char *db_name, const char *line, rocksdb_writeoptions_t *wopt) {
     char *errstr = NULL;
     struct timeval tv = tv_now();
+    static int i = 0;
 
     rocksdb_put(ldb, wopt, line, strlen(line), line, strlen(line), &errstr);
 
     if (errstr) {
-        printf("rocksdb_put key <%s> to db %s error: %s\n", line, db_name, errstr);
+        log_info("rocksdb_put key <%s> to db %s error: %s", line, db_name, errstr);
         rocksdb_free(errstr);
     } else {
-        printf("rocksdb_put key <%s> to db %s taken %.2fms\n", line, db_name, tv_sub_msec_double(tv_now(), tv));
+        i++;
+        if (i % 10000 == 0) {
+            log_info("rocksdb_put key <%s> to db %s taken %.2fms", line, db_name, tv_sub_msec_double(tv_now(), tv));
+        }
     }
 }
 
@@ -220,7 +224,7 @@ static void process_ldb_keys(rocksdb_t *ldb, ldb_options_t *opt) {
         tv = tv_end;
 
         if (key) {
-            printf("process key <%.*s> klen = %lu, value <%.*s> vlen = %lu, taken %.2fms\n", (int)klen, key, klen, (int)vlen, value, vlen, ms_taken);
+            log_info("process key <%.*s> klen = %lu, value <%.*s> vlen = %lu, taken %.2fms", (int)klen, key, klen, (int)vlen, value, vlen, ms_taken);
         }
 
         rocksdb_iter_next(iter);
@@ -231,20 +235,20 @@ static void process_ldb_keys(rocksdb_t *ldb, ldb_options_t *opt) {
 }
 
 static void process_ldb_compact_range(rocksdb_t *ldb, ldb_options_t *opt) {
-    printf("start to compact_range start <%s> end <%s>\n", opt->range_start, opt->range_end);
+    log_info("start to compact_range start <%s> end <%s>", opt->range_start, opt->range_end);
 
     struct timeval tv_start = tv_now();
     rocksdb_compact_range(ldb, opt->range_start, strlen(opt->range_start), opt->range_end, strlen(opt->range_end));
-    printf("compact finished! taken %.2fms\n", tv_sub_msec_double(tv_now(), tv_start));
+    log_info("compact finished! taken %.2fms", tv_sub_msec_double(tv_now(), tv_start));
 }
 
 static void process_ldb_property(rocksdb_t *ldb, ldb_options_t *opt) {
     char *value = rocksdb_property_value(ldb, opt->propname);
 
     if (value == NULL) {
-        printf("get property <%s> but return NULL\n", opt->propname);
+        log_info("get property <%s> but return NULL", opt->propname);
     } else {
-        printf("%s\n", value);
+        log_info("%s", value);
         rocksdb_free(value);
     }
 }
@@ -255,7 +259,7 @@ static void process_ldb_repair(ldb_options_t *ldb_opt, rocksdb_options_t *opt) {
     struct timeval tv_start = tv_now();
     rocksdb_repair_db(opt, ldb_opt->db_name, &errstr);
 
-    printf("repair db <%s> %s! taken %.2fms", ldb_opt->db_name, errstr == NULL ? "successful!" : errstr, tv_sub_msec_double(tv_now(), tv_start));
+    log_info("repair db <%s> %s! taken %.2fms", ldb_opt->db_name, errstr == NULL ? "successful!" : errstr, tv_sub_msec_double(tv_now(), tv_start));
     rocksdb_free(errstr);
 }
 
@@ -264,12 +268,12 @@ static void process_ldb(rocksdb_t *ldb, const char *typ, const char *errstr, ldb
         if (errstr == NULL) {
             errstr = "no error str";
         }
-        printf("open %s error: %s\n", opt->db_name, errstr);
+        log_info("open %s error: %s", opt->db_name, errstr);
         return;
     }
 
     if (typ == NULL) {
-        printf("type is NULL, impossible!\n");
+        log_info("type is NULL, impossible!");
     } else if (!strcasecmp(typ, "get")) {
         process_ldb_get(ldb, opt);
     } else if (!strcasecmp(typ, "put")) {
@@ -281,7 +285,7 @@ static void process_ldb(rocksdb_t *ldb, const char *typ, const char *errstr, ldb
     } else if (!strcasecmp(typ, "property")) {
         process_ldb_property(ldb, opt);
     } else {
-        printf("invalid type %s\n", typ);
+        log_info("invalid type %s", typ);
     }
 }
 
@@ -308,6 +312,8 @@ int main(int argc, const char *argv[]) {
     rocksdb_options_t *opt = rocksdb_options_create();
     rocksdb_options_set_create_if_missing(opt, 1);
     rocksdb_options_set_max_open_files(opt, ldb_opt->max_open_files);
+    //rocksdb_options_set_target_file_size_base(opt, 32 * 1024 * 1024);
+    //rocksdb_options_set_target_file_size_multiplier(opt, 2);
     if (!strcasecmp(ldb_opt->compression, "snappy")) {
         rocksdb_options_set_compression(opt, rocksdb_snappy_compression);
     }

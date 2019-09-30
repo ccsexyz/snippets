@@ -113,3 +113,11 @@ int main(int argc, const char **argv) {
     test<v1>(n);
     test<v2>(n);
 }
+
+/*
+ * Intel(R) Core(TM) i7-8700 CPU @ 3.20GHz
+$ ./string_printf 100000
+test 2v1: loop 100000 times, taken 12539 msec, s.length = 19888890
+test 2v2: loop 100000 times, taken 25 msec, s.length = 19888890
+ *
+ */
