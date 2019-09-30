@@ -47,3 +47,5 @@ target_link_libraries(uv_echo uv)
 
 add_executable(re2_demo "re2_demo.cpp")
 target_link_libraries(re2_demo re2)
+
+add_executable(string_printf "string_printf.cpp")

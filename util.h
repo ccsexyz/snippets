@@ -16,6 +16,7 @@ extern "C" {
 #include <sys/time.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/socket.h>
 #include <fcntl.h>
 #include <libgen.h>
 #include <errno.h>
@@ -376,12 +377,12 @@ static int set_default_value_of_commands(void *cfg, command_t *cmds, int ncmd, c
         }
 
         if (cmd->set_handler == NULL) {
-            cmd_set_bool(cfg + cmd->offset, "off", NULL);
+            cmd_set_bool((char *)cfg + cmd->offset, "off", NULL);
             continue;
         }
 
         char *errstr2 = NULL;
-        int rc = cmd->set_handler(cfg + cmd->offset, cmd->default_value, &errstr2);
+        int rc = cmd->set_handler((char *)cfg + cmd->offset, cmd->default_value, &errstr2);
         if (rc != 0) {
             snprintf(errbuf, sizeof(errbuf), "failed to set default value of command %s: %s", name_of_command(cmd), errstr2 ? errstr2 : "");
             set_errstr(errstr, errbuf);
@@ -555,12 +556,12 @@ static int parse_command_args(int argc, const char **argv, void *cfg, command_t 
         assert(cmd);
 
         if (cmd->set_handler) {
-            rc = cmd->set_handler(cfg + cmd->offset, optarg, errstr);
+            rc = cmd->set_handler((char *)cfg + cmd->offset, optarg, errstr);
             if (rc != 0) {
                 goto parse_done;
             }
         } else {
-            cmd_set_bool(cfg + cmd->offset, "on", NULL);
+            cmd_set_bool((char *)cfg + cmd->offset, "on", NULL);
         }
 
         flag = 0;
@@ -655,7 +656,8 @@ static void log_raw(int logfd, char *buf, size_t cap, int level, const char *fil
     struct timeval tv = tv_now();
 
     off += time_format(buf + off, cap - off, tv.tv_sec);
-    off += snprintf(buf + off, cap - off, ".%06ld ", tv.tv_usec);
+    long tmp_usec = tv.tv_usec;
+    off += snprintf(buf + off, cap - off, ".%06ld ", tmp_usec);
     off += snprintf(buf + off, cap - off, "[%s] %s:%d, %s, ", __log_level_str[level], file, line, func);
 
     va_list args;
