@@ -28,6 +28,7 @@ extern "C" {
 #include <stdint.h>
 #include <arpa/inet.h>
 #include <netdb.h>
+#include <pthread.h>
 
 #define array_size(a) (sizeof(a) / sizeof(a[0]))
 
@@ -98,6 +99,11 @@ static struct timeval tv_now() {
 static long tv_now_msec() {
     struct timeval tv = tv_now();
     return tv.tv_sec * 1000 + tv.tv_usec / 1000;
+}
+
+static long tv_now_usec() {
+    struct timeval tv = tv_now();
+    return tv.tv_sec * 1000000L + tv.tv_usec;
 }
 
 static void get_size_str(size_t sz, char *buf, size_t cap) {
@@ -598,6 +604,37 @@ static size_t time_format(char *buf, size_t cap, time_t now) {
     return 0;
 }
 
+int read_command_output(const char *command, char *buf, size_t n) {
+    if (buf == NULL || n == 0) {
+        return -2;
+    }
+
+    FILE *pipe = popen(command, "r");
+    if (pipe == NULL) {
+        return -1;
+    }
+
+    for (; n > 1;) {
+        size_t nr = fread(buf, 1, n - 1, pipe);
+
+        if (nr > 0) {
+            buf[nr] = '\0';
+            buf += nr;
+            n -= nr;
+        }
+
+        if (nr != n - 1) {
+            if (feof(pipe) || ferror(pipe)) {
+                break;
+            }
+        }
+    }
+
+    pclose(pipe);
+
+    return 0;
+}
+
 enum {
     LOG_VERBOSE,
     LOG_DEBUG,
@@ -716,6 +753,8 @@ static void log_raw(int logfd, char *buf, size_t cap, int level, const char *fil
 #include <unordered_map>
 #include <unordered_set>
 #include <string>
+#include <thread>
+#include <typeinfo>
 
 using namespace std;
 
@@ -728,5 +767,22 @@ private:
     struct timeval tv_;
     string info_;
 };
+
+
+template<typename T>
+std::string get_filt_type_name() {
+    std::string name = typeid(T).name();
+
+    std::string command = "c++filt " + name;
+    size_t n = name.length() * 3 + 10;
+    char *buf = (char *)malloc(n);
+    if (read_command_output(command.c_str(), buf, n) == 0) {
+        name = buf;
+        name.erase(name.find('\n'));
+    }
+    free(buf);
+
+    return name;
+}
 
 #endif
