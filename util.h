@@ -702,7 +702,9 @@ static void log_raw(int logfd, char *buf, size_t cap, int level, const char *fil
     off += vsnprintf(buf + off, cap - off, fmt, args);
     va_end(args);
 
-    off += snprintf(buf + off, cap - off, "\n");
+    if (buf[off - 1] != '\n') {
+        off += snprintf(buf + off, cap - off, "\n");
+    }
 
     write(logfd, buf, off);
 }
