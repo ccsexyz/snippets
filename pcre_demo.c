@@ -1,12 +1,16 @@
 #include "util.h"
 #include <pcre.h>
 
-static void match(pcre *compiled, pcre_extra *extra, const char *str) {
+static void
+match(pcre *compiled, pcre_extra *extra, const char *str)
+{
     int rc = pcre_exec(compiled, extra, str, strlen(str), 0, 0, NULL, 0);
     printf("rc = %d\n", rc);
 }
 
-int main(int argc, const char **argv) {
+int
+main(int argc, const char **argv)
+{
     const char *base = basename(strdup(argv[0]));
 
     if (argc < 3) {

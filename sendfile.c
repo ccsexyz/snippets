@@ -1,23 +1,25 @@
-#include <stdio.h>
-#include <unistd.h>
-#include <sys/sendfile.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <string.h>
-#include <libgen.h>
-#include <sys/mman.h>
-#include <sys/stat.h>
-#include <fcntl.h>
 #include <arpa/inet.h>
-#include <netdb.h>
 #include <errno.h>
-#include <sys/ioctl.h>
+#include <fcntl.h>
+#include <libgen.h>
 #include <linux/fs.h>
+#include <netdb.h>
 #include <signal.h>
-#include <sys/time.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <sys/ioctl.h>
+#include <sys/mman.h>
+#include <sys/sendfile.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
+#include <sys/time.h>
+#include <sys/types.h>
+#include <unistd.h>
 
-static ssize_t get_real_size(const char *filename) {
+static ssize_t
+get_real_size(const char *filename)
+{
     struct stat file_stat;
     if (stat(filename, &file_stat) < 0) {
         printf("can't stat %s: %s\n", filename, strerror(errno));
@@ -49,12 +51,16 @@ static ssize_t get_real_size(const char *filename) {
     return -1;
 }
 
-static double tv_sub_msec_double(struct timeval end, struct timeval start) {
-    return ((double)(end.tv_sec - start.tv_sec)) * 1000 + ((
-        double)(end.tv_usec - start.tv_usec)) / 1000;
+static double
+tv_sub_msec_double(struct timeval end, struct timeval start)
+{
+    return ((double)(end.tv_sec - start.tv_sec)) * 1000
+        + ((double)(end.tv_usec - start.tv_usec)) / 1000;
 }
 
-int main(int argc, char **argv) {
+int
+main(int argc, char **argv)
+{
     if (argc != 3) {
         printf("usage: %s filename destination\n", basename(argv[0]));
         return 1;
@@ -130,7 +136,8 @@ int main(int argc, char **argv) {
     gettimeofday(&start, NULL);
     ssize_t nsend = sendfile(sock, fd, &off, file_size);
     gettimeofday(&end, NULL);
-    printf("sendfile send %ld bytes data to %s, taken %g ms\n", nsend, destination, tv_sub_msec_double(end, start));
+    printf("sendfile send %ld bytes data to %s, taken %g ms\n", nsend, destination,
+        tv_sub_msec_double(end, start));
 
     sleep(1);
 
@@ -140,7 +147,8 @@ int main(int argc, char **argv) {
     gettimeofday(&start, NULL);
     ssize_t nwrite = write(sock, buf, file_size);
     gettimeofday(&end, NULL);
-    printf("write send %ld bytes data to %s, taken %g ms\n", nwrite, destination, tv_sub_msec_double(end, start));
+    printf("write send %ld bytes data to %s, taken %g ms\n", nwrite, destination,
+        tv_sub_msec_double(end, start));
 
     return 0;
 }

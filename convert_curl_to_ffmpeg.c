@@ -8,45 +8,15 @@ typedef struct {
     char *file_name;
 } config;
 
-static command_t cmds[] = {
-    {
-        "H",
-        "",
-        cmd_set_strlist,
-        offsetof(config, headers),
-        NULL
-    },
-    {
-        "",
-        "bin",
-        cmd_set_str,
-        offsetof(config, bin_path),
-        "ffmpeg"
-    },
-    {
-        "",
-        "allow_header",
-        cmd_set_strlist,
-        offsetof(config, allow_header),
-        NULL
-    },
-    {
-        "",
-        "file_name",
-        cmd_set_str,
-        offsetof(config, file_name),
-        "1.mp4"
-    },
-    {
-        "",
-        "compressed",
-        NULL,
-        offsetof(config, compressed),
-        ""
-    }
-};
+static command_t cmds[] = { { "H", "", cmd_set_strlist, offsetof(config, headers), NULL },
+    { "", "bin", cmd_set_str, offsetof(config, bin_path), "ffmpeg" },
+    { "", "allow_header", cmd_set_strlist, offsetof(config, allow_header), NULL },
+    { "", "file_name", cmd_set_str, offsetof(config, file_name), "1.mp4" },
+    { "", "compressed", NULL, offsetof(config, compressed), "" } };
 
-int should_ignore_this_header(config *cfg, const char *key) {
+int
+should_ignore_this_header(config *cfg, const char *key)
+{
     if (str_empty(key)) {
         return 1;
     }
@@ -72,7 +42,9 @@ int should_ignore_this_header(config *cfg, const char *key) {
     return 1;
 }
 
-char *build_headers(config *cfg, key_value_t *kv) {
+char *
+build_headers(config *cfg, key_value_t *kv)
+{
     size_t len = 0;
     size_t num = 0;
 
@@ -114,7 +86,9 @@ char *build_headers(config *cfg, key_value_t *kv) {
     return orig_str;
 }
 
-int main(int argc, const char **argv) {
+int
+main(int argc, const char **argv)
+{
     char *errstr = NULL;
     char *url = NULL;
     config *cfg = (config *)calloc(1, sizeof(config));
@@ -134,11 +108,8 @@ int main(int argc, const char **argv) {
     log_info("url %s", url);
     log_info("headers %s", headers);
 
-    rc = execlp(cfg->bin_path, basename(cfg->bin_path),
-               "-headers", headers,
-               "-i", url,
-               "-c", "copy",
-               cfg->file_name, NULL);
+    rc = execlp(cfg->bin_path, basename(cfg->bin_path), "-headers", headers, "-i", url, "-c",
+        "copy", cfg->file_name, NULL);
     if (rc < 0) {
         log_fatal("execl error: %s", strerror(errno));
     }

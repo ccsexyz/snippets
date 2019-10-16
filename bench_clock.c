@@ -1,6 +1,8 @@
 #include "util.h"
 
-static void bench_clockgettime(clockid_t id, const char *name) {
+static void
+bench_clockgettime(clockid_t id, const char *name)
+{
     struct timeval tv_start = tv_now();
     struct timespec spec;
 
@@ -15,7 +17,9 @@ static void bench_clockgettime(clockid_t id, const char *name) {
 
 #define BENCH_CLOCKGETTIME(ID) bench_clockgettime((ID), (#ID))
 
-static void bench_gettimeofday() {
+static void
+bench_gettimeofday()
+{
     struct timeval tv_start = tv_now();
     struct timeval tv;
 
@@ -28,7 +32,9 @@ static void bench_gettimeofday() {
     printf("bench gettimeofday taken %.2f ms, %.2f ns/op\n", ms_taken, ms_taken / 10);
 }
 
-static void bench_coarse_diff() {
+static void
+bench_coarse_diff()
+{
     const int N = 100000;
     double total_msec_double = 0;
 
@@ -50,7 +56,9 @@ static void bench_coarse_diff() {
     printf("%s = %.3g ms\n", __func__, total_msec_double / N);
 }
 
-int main(void) {
+int
+main(void)
+{
     bench_coarse_diff();
 
     BENCH_CLOCKGETTIME(CLOCK_REALTIME);

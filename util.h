@@ -8,31 +8,35 @@
 extern "C" {
 #endif
 
+#include <arpa/inet.h>
+#include <assert.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <getopt.h>
+#include <libgen.h>
+#include <math.h>
+#include <netdb.h>
+#include <poll.h>
+#include <pthread.h>
+#include <stdarg.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <assert.h>
-#include <math.h>
 #include <string.h>
-#include <sys/time.h>
-#include <sys/stat.h>
-#include <sys/types.h>
 #include <sys/socket.h>
-#include <fcntl.h>
-#include <libgen.h>
-#include <errno.h>
-#include <unistd.h>
-#include <getopt.h>
-#include <stddef.h>
+#include <sys/stat.h>
+#include <sys/time.h>
+#include <sys/types.h>
 #include <time.h>
-#include <stdarg.h>
-#include <stdint.h>
-#include <arpa/inet.h>
-#include <netdb.h>
-#include <pthread.h>
+#include <unistd.h>
+#include <signal.h>
 
 #define array_size(a) (sizeof(a) / sizeof(a[0]))
 
-static int split_host_port(const char *hostport, char *host, size_t hostlen, int *pport) {
+static int
+split_host_port(const char *hostport, char *host, size_t hostlen, int *pport)
+{
     if (hostport == NULL || strlen(hostport) <= 1) {
         return 1;
     }
@@ -67,46 +71,64 @@ static int split_host_port(const char *hostport, char *host, size_t hostlen, int
     return 0;
 }
 
-static void reset_str_ptr(char **pstr, char *new_str) {
+static void
+reset_str_ptr(char **pstr, char *new_str)
+{
     free(*pstr);
     *pstr = strdup(new_str);
 }
 
-static double tv_sub_msec_double(struct timeval end, struct timeval start) {
-    return ((double)(end.tv_sec - start.tv_sec)) * 1000 + ((
-        double)(end.tv_usec - start.tv_usec)) / 1000;
+static double
+tv_sub_msec_double(struct timeval end, struct timeval start)
+{
+    return ((double)(end.tv_sec - start.tv_sec)) * 1000
+        + ((double)(end.tv_usec - start.tv_usec)) / 1000;
 }
 
-static long tv_sub_msec(struct timeval end, struct timeval start) {
+static long
+tv_sub_msec(struct timeval end, struct timeval start)
+{
     return (end.tv_sec - start.tv_sec) * 1000 + (end.tv_usec - start.tv_usec) / 1000;
 }
 
-static double ts_sub_msec_double(struct timespec end, struct timespec start) {
-    return ((double)(end.tv_sec - start.tv_sec)) * 1000 + ((
-        double)(end.tv_nsec - start.tv_nsec)) / 1000000;
+static double
+ts_sub_msec_double(struct timespec end, struct timespec start)
+{
+    return ((double)(end.tv_sec - start.tv_sec)) * 1000
+        + ((double)(end.tv_nsec - start.tv_nsec)) / 1000000;
 }
 
-static long ts_sub_msec(struct timespec end, struct timespec start) {
+static long
+ts_sub_msec(struct timespec end, struct timespec start)
+{
     return (end.tv_sec - start.tv_sec) * 1000 + (end.tv_nsec - start.tv_nsec) / 1000000;
 }
 
-static struct timeval tv_now() {
+static struct timeval
+tv_now()
+{
     struct timeval tv;
     gettimeofday(&tv, NULL);
     return tv;
 }
 
-static long tv_now_msec() {
+static long
+tv_now_msec()
+{
     struct timeval tv = tv_now();
     return tv.tv_sec * 1000 + tv.tv_usec / 1000;
 }
 
-static long tv_now_usec() {
+static long
+tv_now_usec()
+{
     struct timeval tv = tv_now();
     return tv.tv_sec * 1000000L + tv.tv_usec;
 }
 
-static void get_size_str(size_t sz, char *buf, size_t cap) {
+static void
+get_size_str(size_t sz, char *buf, size_t cap)
+{
     double n = 0.0;
     const char *unit = "";
     static const size_t kb = 1UL << 10;
@@ -141,7 +163,9 @@ struct key_value_s {
     char key[0];
 };
 
-static key_value_t *parse_key_value(const char *str) {
+static key_value_t *
+parse_key_value(const char *str)
+{
     if (str == NULL) {
         return NULL;
     }
@@ -167,7 +191,9 @@ static key_value_t *parse_key_value(const char *str) {
     return kv;
 }
 
-static void free_all_key_values(key_value_t *kv) {
+static void
+free_all_key_values(key_value_t *kv)
+{
     while (kv) {
         key_value_t *kv_to_free = kv;
         kv = kv->next;
@@ -175,7 +201,9 @@ static void free_all_key_values(key_value_t *kv) {
     }
 }
 
-static key_value_t *parse_key_values_from_str_array(const char **str_arr, size_t arr_num) {
+static key_value_t *
+parse_key_values_from_str_array(const char **str_arr, size_t arr_num)
+{
     if (arr_num == 0 || str_arr == NULL) {
         return NULL;
     }
@@ -202,11 +230,15 @@ static key_value_t *parse_key_values_from_str_array(const char **str_arr, size_t
     return ret;
 }
 
-static int str_empty(const char *str) {
+static int
+str_empty(const char *str)
+{
     return str == NULL || strlen(str) == 0;
 }
 
-static void set_errstr(char **errstr, const char *msg) {
+static void
+set_errstr(char **errstr, const char *msg)
+{
     if (errstr == NULL) {
         return;
     }
@@ -220,7 +252,9 @@ static void set_errstr(char **errstr, const char *msg) {
 typedef int (*command_set_handler)(void *p, const char *value, char **errstr);
 typedef struct command_s command_t;
 
-static int cmd_set_int(void *p, const char *value, char **errstr) {
+static int
+cmd_set_int(void *p, const char *value, char **errstr)
+{
     assert(value);
 
     *(int *)p = atoi(value);
@@ -228,7 +262,9 @@ static int cmd_set_int(void *p, const char *value, char **errstr) {
     return 0;
 }
 
-static int cmd_set_str(void *p, const char *value, char **errstr) {
+static int
+cmd_set_str(void *p, const char *value, char **errstr)
+{
     assert(value);
 
     char *old_str = *(char **)p;
@@ -240,7 +276,9 @@ static int cmd_set_str(void *p, const char *value, char **errstr) {
     return 0;
 }
 
-static int cmd_set_strlist(void *p, const char *value, char **errstr) {
+static int
+cmd_set_strlist(void *p, const char *value, char **errstr)
+{
     assert(value);
 
     size_t len = strlen(value);
@@ -260,7 +298,9 @@ static int cmd_set_strlist(void *p, const char *value, char **errstr) {
     return 0;
 }
 
-static int cmd_set_bool(void *p, const char *value, char **errstr) {
+static int
+cmd_set_bool(void *p, const char *value, char **errstr)
+{
     assert(value);
 
     if (!strcasecmp(value, "on")) {
@@ -275,9 +315,11 @@ static int cmd_set_bool(void *p, const char *value, char **errstr) {
     return 0;
 }
 
-static int cmd_set_size(void *p, const char *value, char **errstr) {
+static int
+cmd_set_size(void *p, const char *value, char **errstr)
+{
     assert(value);
-    
+
     char *endp = NULL;
     int shift = 0;
 
@@ -345,11 +387,15 @@ struct command_s {
     const char *usage;
 };
 
-static const char *name_of_command(command_t *cmd) {
+static const char *
+name_of_command(command_t *cmd)
+{
     return !str_empty(cmd->long_name) ? cmd->long_name : cmd->short_name;
 }
 
-static int check_commands(command_t *cmds, int ncmd, char **errstr) {
+static int
+check_commands(command_t *cmds, int ncmd, char **errstr)
+{
     char errbuf[1024];
 
     for (int i = 0; i < ncmd; i++) {
@@ -360,7 +406,8 @@ static int check_commands(command_t *cmds, int ncmd, char **errstr) {
             goto check_error;
         }
         if (strlen(cmd->short_name) > 1) {
-            snprintf(errbuf, sizeof(errbuf), "cmd %s short_name should have only one character", name_of_command(cmd));
+            snprintf(errbuf, sizeof(errbuf), "cmd %s short_name should have only one character",
+                name_of_command(cmd));
             goto check_error;
         }
     }
@@ -372,7 +419,9 @@ check_error:
     return -1;
 }
 
-static int set_default_value_of_commands(void *cfg, command_t *cmds, int ncmd, char **errstr) {
+static int
+set_default_value_of_commands(void *cfg, command_t *cmds, int ncmd, char **errstr)
+{
     char errbuf[1024];
 
     for (int i = 0; i < ncmd; i++) {
@@ -390,7 +439,8 @@ static int set_default_value_of_commands(void *cfg, command_t *cmds, int ncmd, c
         char *errstr2 = NULL;
         int rc = cmd->set_handler((char *)cfg + cmd->offset, cmd->default_value, &errstr2);
         if (rc != 0) {
-            snprintf(errbuf, sizeof(errbuf), "failed to set default value of command %s: %s", name_of_command(cmd), errstr2 ? errstr2 : "");
+            snprintf(errbuf, sizeof(errbuf), "failed to set default value of command %s: %s",
+                name_of_command(cmd), errstr2 ? errstr2 : "");
             set_errstr(errstr, errbuf);
             free(errstr2);
             return rc;
@@ -400,7 +450,9 @@ static int set_default_value_of_commands(void *cfg, command_t *cmds, int ncmd, c
     return 0;
 }
 
-static void build_longopts(command_t *cmds, int ncmd, struct option *longopts, int *pflag) {
+static void
+build_longopts(command_t *cmds, int ncmd, struct option *longopts, int *pflag)
+{
     assert(pflag);
 
     int optnum = 0;
@@ -425,7 +477,9 @@ static void build_longopts(command_t *cmds, int ncmd, struct option *longopts, i
     }
 }
 
-static char *build_optstr(command_t *cmds, int ncmd) {
+static char *
+build_optstr(command_t *cmds, int ncmd)
+{
     size_t cap = 3 * (ncmd + 2);
     char *orig_optstr = (char *)calloc(cap, 1);
     char *optstr = orig_optstr;
@@ -456,7 +510,9 @@ static char *build_optstr(command_t *cmds, int ncmd) {
     return orig_optstr;
 }
 
-static void output_command_usage(command_t *cmds, int ncmd) {
+static void
+output_command_usage(command_t *cmds, int ncmd)
+{
     int max_long_name_len = 0;
 
     for (int i = 0; i < ncmd; i++) {
@@ -504,7 +560,10 @@ static void output_command_usage(command_t *cmds, int ncmd) {
     }
 }
 
-static int parse_command_args(int argc, const char **argv, void *cfg, command_t *cmds, int ncmd, char **errstr, char **extra_arg) {
+static int
+parse_command_args(int argc, const char **argv, void *cfg, command_t *cmds, int ncmd, char **errstr,
+    char **extra_arg)
+{
     int c = 0;
     int rc = 0;
 
@@ -585,7 +644,9 @@ parse_done:
     return rc;
 }
 
-static size_t time_format(char *buf, size_t cap, time_t now) {
+static size_t
+time_format(char *buf, size_t cap, time_t now)
+{
     if (buf == NULL || cap == 0) {
         return 0;
     }
@@ -593,9 +654,8 @@ static size_t time_format(char *buf, size_t cap, time_t now) {
     struct tm _tm;
     localtime_r(&now, &_tm);
 
-    int rc = snprintf(buf, cap, "%d-%02d-%02d %02d:%02d:%02d",
-                      _tm.tm_year + 1900, _tm.tm_mon + 1, _tm.tm_mday,
-                      _tm.tm_hour, _tm.tm_min, _tm.tm_sec);
+    int rc = snprintf(buf, cap, "%d-%02d-%02d %02d:%02d:%02d", _tm.tm_year + 1900, _tm.tm_mon + 1,
+        _tm.tm_mday, _tm.tm_hour, _tm.tm_min, _tm.tm_sec);
 
     if (rc > 0) {
         return (size_t)rc;
@@ -604,7 +664,9 @@ static size_t time_format(char *buf, size_t cap, time_t now) {
     return 0;
 }
 
-int read_command_output(const char *command, char *buf, size_t n) {
+int
+read_command_output(const char *command, char *buf, size_t n)
+{
     if (buf == NULL || n == 0) {
         return -2;
     }
@@ -635,26 +697,146 @@ int read_command_output(const char *command, char *buf, size_t n) {
     return 0;
 }
 
-enum {
-    LOG_VERBOSE,
-    LOG_DEBUG,
-    LOG_INFO,
-    LOG_ERROR,
-    LOG_ALERT,
-    LOG_FATAL,
-    LOG_MAX_LEVEL
+typedef struct URI URI;
+
+struct URI {
+    // all strings are terminated with '\0'
+    const char *schema;
+    const char *host;
+    const char *path;
+    uint16_t port;
 };
 
-static const char *__log_level_str[] = {
-    "VERBOSE",
-    "DEBUG",
-    "INFO",
-    "ERROR",
-    "ALERT",
-    "FATAL"
-};
+static URI *
+parse_uri(const char *uri)
+{
+    if (str_empty(uri)) {
+        return NULL;
+    }
 
-static int log_level_str_to_int(const char *level_str) {
+    int is_http = 0;
+    int is_https = 0;
+    const char *schema = uri;
+    const char *schema_end = strstr(uri, "://");
+    const char *host = NULL;
+    size_t schema_len = 0;
+    if (schema_end == NULL) {
+        schema = "http";
+        schema_len = strlen("http");
+        host = uri;
+        is_http = 1;
+    } else {
+        schema_len = schema_end - schema;
+        is_http = !strncmp(schema, "http", schema_len);
+        is_https = !strncmp(schema, "https", schema_len);
+        if (!is_http && !is_https) {
+            return NULL;
+        }
+        host = schema_end + strlen("://");
+    }
+
+    const char *host_end = NULL;
+    const char *path = strstr(host, "/");
+    if (path == NULL) {
+        path = "/";
+        host_end = host + strlen(host);
+    } else {
+        host_end = path;
+    }
+
+    size_t host_len = 0;
+    const char *port = NULL;
+    size_t port_len = 0;
+    if (host[0] == '[') {
+        const char *v6_addr = host + 1;
+        const char *v6_end = NULL;
+        for (const char *p = v6_addr; p < host_end; p++) {
+            if (*p == ']') {
+                v6_end = p - 1;
+                break;
+            }
+        }
+        if (v6_end == NULL) {
+            return NULL;
+        }
+        host = v6_addr;
+        host_len = v6_end - host + 1;
+        if (v6_end + 1 != host_end) {
+            if (v6_end[0] != ':') {
+                return NULL;
+            }
+            port_len = host_end - v6_end - 2;
+            if (port_len == 0) {
+                return NULL;
+            }
+            port = v6_end + 2;
+        }
+    } else {
+        for (const char *p = host; p < host_end; p++) {
+            if (*p == ':') {
+                port = p + 1;
+                break;
+            }
+        }
+        if (port) {
+            host_len = port - host - 1;
+            if (port == host_end) {
+                return NULL;
+            }
+            port_len = host_end - port;
+        } else {
+            host_len = host_end - host;
+        }
+    }
+
+    uint16_t uport = is_http ? 80 : 443;
+    if (port) {
+        char buf[10];
+        if (port_len > sizeof(buf) - 1) {
+            return NULL;
+        }
+        memcpy(buf, port, port_len);
+        buf[port_len] = '\0';
+        char *endp = NULL;
+        long lport = strtol(buf, &endp, 10);
+        if (endp == NULL || *endp != '\0') {
+            return NULL;
+        }
+        if (lport <= 0 || lport >= 65536) {
+            return NULL;
+        }
+        uport = (uint16_t)lport;
+    }
+
+    URI *u = (URI *)malloc(sizeof(URI));
+    u->schema = strndup(schema, schema_len);
+    u->host = strndup(host, host_len);
+    u->path = strdup(path);
+    u->port = uport;
+
+    return u;
+}
+
+static void
+free_uri(URI *uri)
+{
+    if (uri == NULL) {
+        return;
+    }
+
+    free((void *)uri->schema);
+    free((void *)uri->host);
+    free((void *)uri->path);
+    free((void *)uri);
+}
+
+enum { LOG_VERBOSE, LOG_DEBUG, LOG_INFO, LOG_ERROR, LOG_ALERT, LOG_FATAL, LOG_MAX_LEVEL };
+
+static const char *__log_level_str[] = { "VERBOSE", "DEBUG", "INFO", "ERROR", "ALERT", "FATAL" };
+
+static int
+log_level_str_to_int(const char *level_str)
+{
     int i = 0;
 
     for (; i < LOG_MAX_LEVEL; i++) {
@@ -666,7 +848,9 @@ static int log_level_str_to_int(const char *level_str) {
     return i;
 }
 
-static const char *log_level_int_to_str(int level) {
+static const char *
+log_level_int_to_str(int level)
+{
     if (level < 0 || level >= LOG_MAX_LEVEL) {
         return NULL;
     }
@@ -674,7 +858,10 @@ static const char *log_level_int_to_str(int level) {
     return __log_level_str[level];
 }
 
-static void log_raw(int logfd, char *buf, size_t cap, int level, const char *file, int line, const char *func, const char *fmt, ...) {
+static void
+log_raw(int logfd, char *buf, size_t cap, int level, const char *file, int line, const char *func,
+    const char *fmt, ...)
+{
     if (level >= LOG_MAX_LEVEL || level < 0) {
         return;
     }
@@ -695,7 +882,8 @@ static void log_raw(int logfd, char *buf, size_t cap, int level, const char *fil
     off += time_format(buf + off, cap - off, tv.tv_sec);
     long tmp_usec = tv.tv_usec;
     off += snprintf(buf + off, cap - off, ".%06ld ", tmp_usec);
-    off += snprintf(buf + off, cap - off, "[%s] %s:%d, %s, ", __log_level_str[level], file, line, func);
+    off += snprintf(
+        buf + off, cap - off, "[%s] %s:%d, %s, ", __log_level_str[level], file, line, func);
 
     va_list args;
     va_start(args, fmt);
@@ -714,55 +902,60 @@ static void log_raw(int logfd, char *buf, size_t cap, int level, const char *fil
 #endif
 
 #ifndef TRIM_FILE_NAME
-#define TRIM_FILE_NAME(name) ({ const char *x = strrchr(name, '/'); const char *res = x ? x + 1 : name; res; })
+#define TRIM_FILE_NAME(name)                                                                       \
+    ({                                                                                             \
+        const char *x = strrchr(name, '/');                                                        \
+        const char *res = x ? x + 1 : name;                                                        \
+        res;                                                                                       \
+    })
 #endif
 
-#define log(level, fmt, args...) \
-        do { \
-            if ((level) >= (LOG_MIN_LEVEL))\
-                log_raw(STDOUT_FILENO, NULL, 0, (level), TRIM_FILE_NAME(__FILE__), (__LINE__), (__func__), (fmt), ##args);\
-        } while (0)
+#define log(level, fmt, args...)                                                                   \
+    do {                                                                                           \
+        if ((level) >= (LOG_MIN_LEVEL))                                                            \
+            log_raw(STDOUT_FILENO, NULL, 0, (level), TRIM_FILE_NAME(__FILE__), (__LINE__),         \
+                (__func__), (fmt), ##args);                                                        \
+    } while (0)
 
-#define log_verb(fmt, args...) \
-        log(LOG_VERBOSE, (fmt), ##args)
+#define log_verb(fmt, args...) log(LOG_VERBOSE, (fmt), ##args)
 
-#define log_debug(fmt, args...) \
-        log(LOG_DEBUG, (fmt), ##args)
+#define log_debug(fmt, args...) log(LOG_DEBUG, (fmt), ##args)
 
-#define log_info(fmt, args...) \
-        log(LOG_INFO, (fmt), ##args)
+#define log_info(fmt, args...) log(LOG_INFO, (fmt), ##args)
 
-#define log_error(fmt, args...) \
-        log(LOG_ERROR, (fmt), ##args)
+#define log_error(fmt, args...) log(LOG_ERROR, (fmt), ##args)
 
-#define log_alert(fmt, args...) \
-        log(LOG_ALERT, (fmt), ##args)
+#define log_alert(fmt, args...) log(LOG_ALERT, (fmt), ##args)
 
-#define log_fatal(fmt, args...) \
-        do {\
-            log(LOG_FATAL, (fmt), ##args);\
-            exit(1);\
-        } while (0)
+#define log_fatal(fmt, args...)                                                                    \
+    do {                                                                                           \
+        log(LOG_FATAL, (fmt), ##args);                                                             \
+        exit(1);                                                                                   \
+    } while (0)
 
 #ifdef __cplusplus
 }
 
-#include <iostream>
 #include <functional>
-#include <memory>
-#include <vector>
+#include <iostream>
 #include <map>
-#include <unordered_map>
-#include <unordered_set>
+#include <memory>
 #include <string>
 #include <thread>
 #include <typeinfo>
+#include <unordered_map>
+#include <unordered_set>
+#include <vector>
 
 using namespace std;
 
 class elapsed {
 public:
-    elapsed(const string &info) : tv_(tv_now()), info_(info) {}
+    elapsed(const string &info)
+        : tv_(tv_now())
+        , info_(info)
+    {
+    }
     ~elapsed() { printf("%s taken %.2fms\n", info_.data(), tv_sub_msec_double(tv_now(), tv_)); }
 
 private:
@@ -770,9 +963,10 @@ private:
     string info_;
 };
 
-
-template<typename T>
-std::string get_filt_type_name() {
+template <typename T>
+std::string
+get_filt_type_name()
+{
     std::string name = typeid(T).name();
 
     std::string command = "c++filt " + name;

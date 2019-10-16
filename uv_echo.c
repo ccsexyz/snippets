@@ -5,15 +5,8 @@ struct config {
     int local_port;
 } conf;
 
-static command_t cmds[] = {
-    {
-        "l",
-        "local_port",
-        cmd_set_int,
-        offsetof(struct config, local_port),
-        "6090"
-    }
-};
+static command_t cmds[]
+    = { { "l", "local_port", cmd_set_int, offsetof(struct config, local_port), "6090" } };
 
 typedef struct {
     uv_write_t req;
@@ -22,16 +15,22 @@ typedef struct {
 
 static uv_loop_t *default_loop;
 
-static void on_close(uv_handle_t *handle) {
+static void
+on_close(uv_handle_t *handle)
+{
     free(handle);
 }
 
-static void after_shutdown(uv_shutdown_t *req, int status) {
+static void
+after_shutdown(uv_shutdown_t *req, int status)
+{
     uv_close((uv_handle_t *)req->handle, on_close);
     free(req);
 }
 
-static void after_write(uv_write_t *req, int status) {
+static void
+after_write(uv_write_t *req, int status)
+{
     write_req_t *wr = (write_req_t *)req;
 
     free(wr->buf.base);
@@ -48,7 +47,9 @@ static void after_write(uv_write_t *req, int status) {
     uv_close((uv_handle_t *)req->handle, on_close);
 }
 
-static void after_read(uv_stream_t *handle, ssize_t nread, const uv_buf_t *buf) {
+static void
+after_read(uv_stream_t *handle, ssize_t nread, const uv_buf_t *buf)
+{
     if (nread <= 0 && buf->base) {
         free(buf->base);
     }
@@ -76,13 +77,17 @@ static void after_read(uv_stream_t *handle, ssize_t nread, const uv_buf_t *buf) 
     assert(rc == 0);
 }
 
-static void alloc_cb(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf) {
+static void
+alloc_cb(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf)
+{
     buf->base = malloc(suggested_size);
     assert(buf->base);
     buf->len = suggested_size;
 }
 
-static void on_new_connection(uv_stream_t *server, int status) {
+static void
+on_new_connection(uv_stream_t *server, int status)
+{
     assert(status == 0);
 
     uv_tcp_t *stream = calloc(1, sizeof(uv_tcp_t));
@@ -100,7 +105,9 @@ static void on_new_connection(uv_stream_t *server, int status) {
     assert(rc == 0);
 }
 
-static int create_tcp_echo_server(uv_loop_t *loop, int port) {
+static int
+create_tcp_echo_server(uv_loop_t *loop, int port)
+{
     struct sockaddr_in addr;
 
     int rc = uv_ip4_addr("127.0.0.1", port, &addr);
@@ -126,13 +133,16 @@ static int create_tcp_echo_server(uv_loop_t *loop, int port) {
     return 0;
 }
 
-int main(int argc, char **argv) {
+int
+main(int argc, char **argv)
+{
     uv_loop_t *loop = uv_default_loop();
     assert(loop);
     default_loop = loop;
 
     char *errstr = NULL;
-    int rc = parse_command_args(argc, (const char **)argv, &conf, cmds, array_size(cmds), &errstr, NULL);
+    int rc = parse_command_args(
+        argc, (const char **)argv, &conf, cmds, array_size(cmds), &errstr, NULL);
     if (rc != 0) {
         log_fatal("parse command error: %s", errstr ? errstr : "");
     }
@@ -146,4 +156,3 @@ int main(int argc, char **argv) {
 
     return 0;
 }
-

@@ -1,12 +1,16 @@
-#include "util.h"
 #include "re2/re2.h"
+#include "util.h"
 
-static void match(const RE2 &re, const std::string &str) {
+static void
+match(const RE2 &re, const std::string &str)
+{
     auto rc = RE2::FullMatch(str, re);
     printf("rc = %d\n", rc);
 }
 
-int main(int argc, const char **argv) {
+int
+main(int argc, const char **argv)
+{
     const char *base = basename(strdup(argv[0]));
 
     if (argc < 3) {

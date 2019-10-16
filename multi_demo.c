@@ -1,18 +1,20 @@
+#include <curl/curl.h>
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <curl/curl.h>
 
-static size_t write_cb(char *data, size_t n, size_t l, void *userp)
+static size_t
+write_cb(char *data, size_t n, size_t l, void *userp)
 {
-    /* take care of the data here, ignored in this example */ 
+    /* take care of the data here, ignored in this example */
     (void)data;
     (void)userp;
-    return n*l;
+    return n * l;
 }
 
-static void add_transfer(CURLM *cm, const char *url)
+static void
+add_transfer(CURLM *cm, const char *url)
 {
     CURL *eh = curl_easy_init();
     curl_easy_setopt(eh, CURLOPT_WRITEFUNCTION, write_cb);
@@ -21,7 +23,8 @@ static void add_transfer(CURLM *cm, const char *url)
     curl_multi_add_handle(cm, eh);
 }
 
-int main(int argc, char **argv)
+int
+main(int argc, char **argv)
 {
     CURLM *cm;
     CURLMsg *msg;
@@ -32,30 +35,29 @@ int main(int argc, char **argv)
     curl_global_init(CURL_GLOBAL_ALL);
     cm = curl_multi_init();
 
-    for(transfers = 1; transfers < argc; transfers++)
-    add_transfer(cm, (const char *)argv[transfers]);
+    for (transfers = 1; transfers < argc; transfers++)
+        add_transfer(cm, (const char *)argv[transfers]);
 
     do {
         curl_multi_perform(cm, &still_alive);
 
-        while((msg = curl_multi_info_read(cm, &msgs_left))) {
-            if(msg->msg == CURLMSG_DONE) {
+        while ((msg = curl_multi_info_read(cm, &msgs_left))) {
+            if (msg->msg == CURLMSG_DONE) {
                 char *url;
                 CURL *e = msg->easy_handle;
                 curl_easy_getinfo(msg->easy_handle, CURLINFO_PRIVATE, &url);
-                fprintf(stderr, "R: %d - %s <%s>\n",
-                        msg->data.result, curl_easy_strerror(msg->data.result), url);
+                fprintf(stderr, "R: %d - %s <%s>\n", msg->data.result,
+                    curl_easy_strerror(msg->data.result), url);
                 curl_multi_remove_handle(cm, e);
                 curl_easy_cleanup(e);
-            }
-            else {
+            } else {
                 fprintf(stderr, "E: CURLMsg (%d)\n", msg->msg);
             }
         }
-        if(still_alive)
-        curl_multi_wait(cm, NULL, 0, 1000, NULL);
+        if (still_alive)
+            curl_multi_wait(cm, NULL, 0, 1000, NULL);
 
-    } while(still_alive);
+    } while (still_alive);
 
     curl_multi_cleanup(cm);
     curl_global_cleanup();

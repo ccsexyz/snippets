@@ -5,7 +5,7 @@
 int still_alive = 1;
 static int log_level = LOG_INFO;
 
-typedef struct curl_context_s curl_context_t; 
+typedef struct curl_context_s curl_context_t;
 
 typedef struct {
     int fd;
@@ -37,74 +37,25 @@ struct curl_context_s {
     double dlnow;
 };
 
-static command_t cmds[] = {
-    {
-        "o",
-        "file_name",
-        cmd_set_str,
-        offsetof(file_context_t, file_name),
-        "",
-        "set the filename of output file, if not set, set by url path"
-    },
-    {
-        "",
-        "part_size",
-        cmd_set_size,
-        offsetof(file_context_t, part_size),
-        "2M",
-        "range part size"
-    },
-    {
-        "",
-        "compressed",
-        NULL,
-        offsetof(file_context_t, compressed),
-        "",
-        "add compressed accept-encoding header"
-    },
-    {
-        "c",
-        "conn",
-        cmd_set_int,
-        offsetof(file_context_t, concurrency),
-        "8",
-        "number of concurrent connections"
-    },
-    {
-        "",
-        "log-level",
-        cmd_set_str,
-        offsetof(file_context_t, log_level_str),
-        "INFO",
-        "log level"
-    },
-    {
-        "H",
-        "header",
-        cmd_set_strlist,
-        offsetof(file_context_t, headers),
-        "",
-        "add customized HTTP Header"
-    },
-    {
-        "l",
-        "",
-        NULL,
-        offsetof(file_context_t, follow_redirection),
-        "",
-        "enable follow redirection"
-    },
-    {
-        "",
-        "max-follow",
-        cmd_set_int,
-        offsetof(file_context_t, max_follow_times),
-        "-1",
-        "max follow times, less than zero means no limit"
-    }
-};
+static command_t cmds[] = { { "o", "file_name", cmd_set_str, offsetof(file_context_t, file_name),
+                                "",
+                                "set the filename of output file, if not set, set by url path" },
+    { "", "part_size", cmd_set_size, offsetof(file_context_t, part_size), "2M", "range part size" },
+    { "", "compressed", NULL, offsetof(file_context_t, compressed), "",
+        "add compressed accept-encoding header" },
+    { "c", "conn", cmd_set_int, offsetof(file_context_t, concurrency), "8",
+        "number of concurrent connections" },
+    { "", "log-level", cmd_set_str, offsetof(file_context_t, log_level_str), "INFO", "log level" },
+    { "H", "header", cmd_set_strlist, offsetof(file_context_t, headers), "",
+        "add customized HTTP Header" },
+    { "l", "", NULL, offsetof(file_context_t, follow_redirection), "",
+        "enable follow redirection" },
+    { "", "max-follow", cmd_set_int, offsetof(file_context_t, max_follow_times), "-1",
+        "max follow times, less than zero means no limit" } };
 
-static size_t size_of_part(file_context_t *file_ctx, int n) {
+static size_t
+size_of_part(file_context_t *file_ctx, int n)
+{
     assert(file_ctx->part_size > 0);
 
     if (file_ctx->part_size * (n + 1) > file_ctx->content_length) {
@@ -114,9 +65,10 @@ static size_t size_of_part(file_context_t *file_ctx, int n) {
     return file_ctx->part_size;
 }
 
-static size_t dummy_write_cb(char *data, size_t n, size_t l, void *userp)
+static size_t
+dummy_write_cb(char *data, size_t n, size_t l, void *userp)
 {
-    /* take care of the data here, ignored in this example */ 
+    /* take care of the data here, ignored in this example */
     (void)data;
     (void)userp;
 
@@ -127,14 +79,17 @@ static size_t dummy_write_cb(char *data, size_t n, size_t l, void *userp)
     return n;
 }
 
-static size_t write_cb(char *data, size_t n, size_t l, void *userp)
+static size_t
+write_cb(char *data, size_t n, size_t l, void *userp)
 {
-    /* take care of the data here, ignored in this example */ 
+    /* take care of the data here, ignored in this example */
     curl_context_t *curl_ctx = (curl_context_t *)userp;
     file_context_t *file_ctx = curl_ctx->file_ctx;
 
     size_t nwrite = n * l;
-    if (curl_ctx->naive == 0 && nwrite + curl_ctx->offset > (curl_ctx->part_index + 1) * file_ctx->part_size > file_ctx->content_length) {
+    if (curl_ctx->naive == 0
+        && nwrite + curl_ctx->offset > (curl_ctx->part_index + 1) * file_ctx->part_size
+            > file_ctx->content_length) {
         nwrite = file_ctx->content_length - curl_ctx->part_index * file_ctx->part_size;
     }
 
@@ -143,10 +98,12 @@ static size_t write_cb(char *data, size_t n, size_t l, void *userp)
         curl_ctx->offset += nwrite;
     }
 
-    return n*l;
+    return n * l;
 }
 
-static void process_content_range_header(char *str, curl_context_t *curl_ctx) {
+static void
+process_content_range_header(char *str, curl_context_t *curl_ctx)
+{
     if (strncasecmp(str, "bytes 0-0/", strlen("bytes 0-0/"))) {
         return;
     }
@@ -160,7 +117,9 @@ static void process_content_range_header(char *str, curl_context_t *curl_ctx) {
     curl_ctx->file_ctx->content_length = strtol(str, NULL, 10);
 }
 
-static size_t probe_header_callback(char *data, size_t size, size_t nitems, void *userdata) {
+static size_t
+probe_header_callback(char *data, size_t size, size_t nitems, void *userdata)
+{
     char *orig_str = strndup(data, size * nitems);
     char *str = orig_str;
     size_t content_range_len = strlen("Content-Range:");
@@ -179,21 +138,27 @@ static size_t probe_header_callback(char *data, size_t size, size_t nitems, void
     return nitems * size;
 }
 
-static int progress_callback(void *ctx, double dltotal, double dlnow, double ultotal, double ulnow) {
+static int
+progress_callback(void *ctx, double dltotal, double dlnow, double ultotal, double ulnow)
+{
     curl_context_t *curl_ctx = (curl_context_t *)ctx;
     file_context_t *file_ctx = curl_ctx->file_ctx;
-    file_ctx->downloaded_length += dlnow - curl_ctx->dlnow; 
+    file_ctx->downloaded_length += dlnow - curl_ctx->dlnow;
     curl_ctx->dlnow = dlnow;
     return 0;
 }
 
-static void add_range_header(CURL *eh, size_t start, size_t end) {
+static void
+add_range_header(CURL *eh, size_t start, size_t end)
+{
     char range_buf[1024];
     snprintf(range_buf, sizeof(range_buf), "%ld-%ld", start, end);
     curl_easy_setopt(eh, CURLOPT_RANGE, range_buf);
 }
 
-static const char *get_file_name(const char *url) {
+static const char *
+get_file_name(const char *url)
+{
     char *dup_url = strdup(url);
     char *base = basename(dup_url);
     char *p = strstr(base, "?");
@@ -205,7 +170,9 @@ static const char *get_file_name(const char *url) {
     return file_name;
 }
 
-static int check_if_header_should_ignore(const char *header_name) {
+static int
+check_if_header_should_ignore(const char *header_name)
+{
     int rc = 0;
 
     // ignore range header
@@ -216,7 +183,9 @@ static int check_if_header_should_ignore(const char *header_name) {
     return rc;
 }
 
-static void add_customized_headers(CURL *eh, key_value_t *headers) {
+static void
+add_customized_headers(CURL *eh, key_value_t *headers)
+{
     struct curl_slist *chunk = NULL;
 
     for (key_value_t *p = headers; p; p = p->next) {
@@ -234,7 +203,9 @@ static void add_customized_headers(CURL *eh, key_value_t *headers) {
     }
 }
 
-static void add_transfer(CURLM *cm, curl_context_t *curl_ctx) {
+static void
+add_transfer(CURLM *cm, curl_context_t *curl_ctx)
+{
     file_context_t *file_ctx = curl_ctx->file_ctx;
 
     CURL *eh = curl_easy_init();
@@ -276,7 +247,9 @@ static void add_transfer(CURLM *cm, curl_context_t *curl_ctx) {
     still_alive = 1;
 }
 
-static void add_probe_transfer(CURLM *cm, file_context_t *file_ctx) {
+static void
+add_probe_transfer(CURLM *cm, file_context_t *file_ctx)
+{
     const char *url = file_ctx->url;
 
     curl_context_t *curl_ctx = (curl_context_t *)calloc(sizeof(curl_context_t), 1);
@@ -286,7 +259,9 @@ static void add_probe_transfer(CURLM *cm, file_context_t *file_ctx) {
     add_transfer(cm, curl_ctx);
 }
 
-static void naive_get(CURLM *cm, file_context_t *file_ctx) {
+static void
+naive_get(CURLM *cm, file_context_t *file_ctx)
+{
     curl_context_t *curl_ctx = (curl_context_t *)calloc(sizeof(curl_context_t), 1);
     curl_ctx->file_ctx = file_ctx;
     curl_ctx->naive = 1;
@@ -294,7 +269,9 @@ static void naive_get(CURLM *cm, file_context_t *file_ctx) {
     add_transfer(cm, curl_ctx);
 }
 
-static void update_progress(CURLM *cm, file_context_t *file_ctx) {
+static void
+update_progress(CURLM *cm, file_context_t *file_ctx)
+{
     if (file_ctx->work_num >= file_ctx->concurrency) {
         return;
     }
@@ -310,7 +287,9 @@ static void update_progress(CURLM *cm, file_context_t *file_ctx) {
     update_progress(cm, file_ctx);
 }
 
-static void process_probing_handle(CURLM *cm, CURL *e, curl_context_t *curl_ctx) {
+static void
+process_probing_handle(CURLM *cm, CURL *e, curl_context_t *curl_ctx)
+{
     long response_code = 0;
     curl_easy_getinfo(e, CURLINFO_RESPONSE_CODE, &response_code);
 
@@ -338,15 +317,21 @@ static void process_probing_handle(CURLM *cm, CURL *e, curl_context_t *curl_ctx)
     update_progress(cm, file_ctx);
 }
 
-static void process_work_handle(CURLM *cm, CURL *e, curl_context_t *curl_ctx) {
+static void
+process_work_handle(CURLM *cm, CURL *e, curl_context_t *curl_ctx)
+{
     curl_ctx->file_ctx->work_num--;
     update_progress(cm, curl_ctx->file_ctx);
 }
 
-static void process_naive_handle(CURLM *cm, CURL *e, curl_context_t *curl_ctx) {
+static void
+process_naive_handle(CURLM *cm, CURL *e, curl_context_t *curl_ctx)
+{
 }
 
-static void process_completed_handle(CURLM *cm, CURL *e) {
+static void
+process_completed_handle(CURLM *cm, CURL *e)
+{
     curl_context_t *curl_ctx = NULL;
     curl_easy_getinfo(e, CURLINFO_PRIVATE, (char **)&curl_ctx);
     assert(curl_ctx);
@@ -360,15 +345,16 @@ static void process_completed_handle(CURLM *cm, CURL *e) {
     }
 }
 
-static void process_message(CURLM *cm, CURLMsg *msg) {
-    if(msg->msg == CURLMSG_DONE) {
+static void
+process_message(CURLM *cm, CURLMsg *msg)
+{
+    if (msg->msg == CURLMSG_DONE) {
         curl_context_t *curl_ctx = NULL;
         CURL *e = msg->easy_handle;
         curl_easy_getinfo(msg->easy_handle, CURLINFO_PRIVATE, &curl_ctx);
         assert(curl_ctx);
-        log_debug("R: %d - %s <%s> part_index=%d\n",
-                  msg->data.result, curl_easy_strerror(msg->data.result),
-                  curl_ctx->file_ctx->url, curl_ctx->part_index);
+        log_debug("R: %d - %s <%s> part_index=%d\n", msg->data.result,
+            curl_easy_strerror(msg->data.result), curl_ctx->file_ctx->url, curl_ctx->part_index);
         process_completed_handle(cm, e);
         curl_multi_remove_handle(cm, e);
         curl_easy_cleanup(e);
@@ -377,13 +363,17 @@ static void process_message(CURLM *cm, CURLMsg *msg) {
     }
 }
 
-static file_context_t *create_file_context() {
+static file_context_t *
+create_file_context()
+{
     file_context_t *file_ctx = (file_context_t *)calloc(sizeof(file_context_t), 1);
 
     return file_ctx;
 }
 
-static void print_status(file_context_t *file_ctx) {
+static void
+print_status(file_context_t *file_ctx)
+{
     if (file_ctx->content_length == 0) {
         return;
     }
@@ -422,11 +412,13 @@ static void print_status(file_context_t *file_ctx) {
     get_size_str(file_ctx->speed * 1000, speed, sizeof(speed));
 
     log_info("progress: %.2f%% %s/%s speed: %s/s",
-           (double)file_ctx->downloaded_length/file_ctx->content_length * 100,
-           dlnow, dltotal, speed);
+        (double)file_ctx->downloaded_length / file_ctx->content_length * 100, dlnow, dltotal,
+        speed);
 }
 
-int main(int argc, const char *argv[]) {
+int
+main(int argc, const char *argv[])
+{
     const char *base = basename(strdup(argv[0]));
 
     if (argc < 2) {
@@ -436,7 +428,8 @@ int main(int argc, const char *argv[]) {
 
     char *errstr = NULL;
     file_context_t *file_ctx = create_file_context();
-    int rc = parse_command_args(argc, argv, file_ctx, cmds, array_size(cmds), &errstr, (char **)&file_ctx->url);
+    int rc = parse_command_args(
+        argc, argv, file_ctx, cmds, array_size(cmds), &errstr, (char **)&file_ctx->url);
     if (rc != 0) {
         log_fatal("parse command error: %s", errstr ? errstr : "");
     }
@@ -479,7 +472,7 @@ int main(int argc, const char *argv[]) {
     do {
         curl_multi_perform(cm, &still_alive);
 
-        while((msg = curl_multi_info_read(cm, &msgs_left))) {
+        while ((msg = curl_multi_info_read(cm, &msgs_left))) {
             process_message(cm, msg);
         }
 
@@ -488,7 +481,7 @@ int main(int argc, const char *argv[]) {
         if (still_alive) {
             curl_multi_wait(cm, NULL, 0, 1000, NULL);
         }
-    } while(still_alive);
+    } while (still_alive);
 
     fsync(file_ctx->fd);
 

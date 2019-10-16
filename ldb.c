@@ -18,106 +18,31 @@ typedef struct {
     char *propname;
 } ldb_options_t;
 
-static command_t cmds[] = {
-    {
-        "",
-        "fill_cache",
-        cmd_set_bool,
-        offsetof(ldb_options_t, fill_cache),
-        "on"
-    },
-    {
-        "",
-        "verify_checksum",
-        cmd_set_bool,
-        offsetof(ldb_options_t, verify_checksum),
-        "on"
-    },
-    {
-        "",
-        "db_name",
-        cmd_set_str,
-        offsetof(ldb_options_t, db_name),
-        "testdb"
-    },
-    {
-        "",
-        "lru_size",
-        cmd_set_int,
-        offsetof(ldb_options_t, lru_size),
-        "1024"
-    },
-    {
-        "",
-        "max_open_files",
-        cmd_set_int,
-        offsetof(ldb_options_t, max_open_files),
-        "1024"
-    },
-    {
-        "",
-        "sync",
-        NULL,
-        offsetof(ldb_options_t, sync),
-        ""
-    },
-    {
-        "",
-        "bits_per_key",
-        cmd_set_int,
-        offsetof(ldb_options_t, bits_per_key),
-        "12"
-    },
-    {
-        "",
-        "compression",
-        cmd_set_str,
-        offsetof(ldb_options_t, compression),
-        "snappy"
-    },
-    {
-        "",
-        "range_start",
-        cmd_set_str,
-        offsetof(ldb_options_t, range_start),
-        ""
-    },
-    {
-        "",
-        "range_end",
-        cmd_set_str,
-        offsetof(ldb_options_t, range_end),
-        ""
-    },
-    {
-        "",
-        "write_buffer_size",
-        cmd_set_size,
-        offsetof(ldb_options_t, write_buffer_size),
-        "16m"
-    },
-    {
-        "",
-        "max_file_size",
-        cmd_set_size,
-        offsetof(ldb_options_t, max_file_size),
-        "16m"
-    },
-    {
-        "",
-        "propname",
-        cmd_set_str,
-        offsetof(ldb_options_t, propname),
-        ""
-    }
-};
+static command_t cmds[] = { { "", "fill_cache", cmd_set_bool, offsetof(ldb_options_t, fill_cache),
+                                "on" },
+    { "", "verify_checksum", cmd_set_bool, offsetof(ldb_options_t, verify_checksum), "on" },
+    { "", "db_name", cmd_set_str, offsetof(ldb_options_t, db_name), "testdb" },
+    { "", "lru_size", cmd_set_int, offsetof(ldb_options_t, lru_size), "1024" },
+    { "", "max_open_files", cmd_set_int, offsetof(ldb_options_t, max_open_files), "1024" },
+    { "", "sync", NULL, offsetof(ldb_options_t, sync), "" },
+    { "", "bits_per_key", cmd_set_int, offsetof(ldb_options_t, bits_per_key), "12" },
+    { "", "compression", cmd_set_str, offsetof(ldb_options_t, compression), "snappy" },
+    { "", "range_start", cmd_set_str, offsetof(ldb_options_t, range_start), "" },
+    { "", "range_end", cmd_set_str, offsetof(ldb_options_t, range_end), "" },
+    { "", "write_buffer_size", cmd_set_size, offsetof(ldb_options_t, write_buffer_size), "16m" },
+    { "", "max_file_size", cmd_set_size, offsetof(ldb_options_t, max_file_size), "16m" },
+    { "", "propname", cmd_set_str, offsetof(ldb_options_t, propname), "" } };
 
-static ldb_options_t *ldb_create_options() {
+static ldb_options_t *
+ldb_create_options()
+{
     ldb_options_t *opt = (ldb_options_t *)calloc(sizeof(ldb_options_t), 1);
     return opt;
 }
 
-static void ldb_options_destroy(ldb_options_t *opt) {
+static void
+ldb_options_destroy(ldb_options_t *opt)
+{
     free(opt->db_name);
     free(opt->compression);
     free(opt->range_start);
@@ -126,7 +51,9 @@ static void ldb_options_destroy(ldb_options_t *opt) {
     free(opt);
 }
 
-static leveldb_readoptions_t *create_readoptions(ldb_options_t *opt) {
+static leveldb_readoptions_t *
+create_readoptions(ldb_options_t *opt)
+{
     leveldb_readoptions_t *ropt = leveldb_readoptions_create();
 
     if (opt->fill_cache) {
@@ -139,7 +66,9 @@ static leveldb_readoptions_t *create_readoptions(ldb_options_t *opt) {
     return ropt;
 }
 
-static leveldb_writeoptions_t *create_writeoptions(ldb_options_t *opt) {
+static leveldb_writeoptions_t *
+create_writeoptions(ldb_options_t *opt)
+{
     leveldb_writeoptions_t *wopt = leveldb_writeoptions_create();
 
     if (opt->sync) {
@@ -149,20 +78,26 @@ static leveldb_writeoptions_t *create_writeoptions(ldb_options_t *opt) {
     return wopt;
 }
 
-static void ldb_get(leveldb_t *ldb, const char *db_name, const char *line, leveldb_readoptions_t *ropt) {
+static void
+ldb_get(leveldb_t *ldb, const char *db_name, const char *line, leveldb_readoptions_t *ropt)
+{
     char *errstr = NULL;
     struct timeval tv = tv_now();
     size_t vallen = 0;
 
     char *value = leveldb_get(ldb, ropt, line, strlen(line), &vallen, &errstr);
 
-    log_info("leveldb_get key <%s> %s, vallen = %lu, errstr = %s, taken %.2fms", line, value ? "HIT" : "MISS", vallen, errstr ? errstr : "errstr is empty", tv_sub_msec_double(tv_now(), tv));
+    log_info("leveldb_get key <%s> %s, vallen = %lu, errstr = %s, taken %.2fms", line,
+        value ? "HIT" : "MISS", vallen, errstr ? errstr : "errstr is empty",
+        tv_sub_msec_double(tv_now(), tv));
 
     leveldb_free(errstr);
     leveldb_free(value);
 }
 
-static void process_ldb_get(leveldb_t *ldb, ldb_options_t *opt) {
+static void
+process_ldb_get(leveldb_t *ldb, ldb_options_t *opt)
+{
     const char *line = NULL;
     char buf[1024 * 16];
 
@@ -183,7 +118,9 @@ static void process_ldb_get(leveldb_t *ldb, ldb_options_t *opt) {
     leveldb_readoptions_destroy(ropt);
 }
 
-static void ldb_put(leveldb_t *ldb, const char *db_name, const char *line, leveldb_writeoptions_t *wopt) {
+static void
+ldb_put(leveldb_t *ldb, const char *db_name, const char *line, leveldb_writeoptions_t *wopt)
+{
     char *errstr = NULL;
     struct timeval tv = tv_now();
 
@@ -193,11 +130,14 @@ static void ldb_put(leveldb_t *ldb, const char *db_name, const char *line, level
         log_info("leveldb_put key <%s> to db %s error: %s", line, db_name, errstr);
         leveldb_free(errstr);
     } else {
-        // log_info("leveldb_put key <%s> to db %s taken %.2fms", line, db_name, tv_sub_msec_double(tv_now(), tv));
+        // log_info("leveldb_put key <%s> to db %s taken %.2fms", line, db_name,
+        // tv_sub_msec_double(tv_now(), tv));
     }
 }
 
-static void process_ldb_put(leveldb_t *ldb, ldb_options_t *opt) {
+static void
+process_ldb_put(leveldb_t *ldb, ldb_options_t *opt)
+{
     const char *line = NULL;
     char buf[1024 * 16];
 
@@ -218,7 +158,9 @@ static void process_ldb_put(leveldb_t *ldb, ldb_options_t *opt) {
     leveldb_writeoptions_destroy(wopt);
 }
 
-static void process_ldb_keys(leveldb_t *ldb, ldb_options_t *opt) {
+static void
+process_ldb_keys(leveldb_t *ldb, ldb_options_t *opt)
+{
     leveldb_readoptions_t *ropt = create_readoptions(opt);
     leveldb_iterator_t *iter = leveldb_create_iterator(ldb, ropt);
 
@@ -242,15 +184,20 @@ static void process_ldb_keys(leveldb_t *ldb, ldb_options_t *opt) {
     leveldb_readoptions_destroy(ropt);
 }
 
-static void process_ldb_compact_range(leveldb_t *ldb, ldb_options_t *opt) {
+static void
+process_ldb_compact_range(leveldb_t *ldb, ldb_options_t *opt)
+{
     log_info("start to compact_range start <%s> end <%s>", opt->range_start, opt->range_end);
 
     struct timeval tv_start = tv_now();
-    leveldb_compact_range(ldb, opt->range_start, strlen(opt->range_start), opt->range_end, strlen(opt->range_end));
+    leveldb_compact_range(
+        ldb, opt->range_start, strlen(opt->range_start), opt->range_end, strlen(opt->range_end));
     log_info("compact finished! taken %.2fms", tv_sub_msec_double(tv_now(), tv_start));
 }
 
-static void process_ldb_property(leveldb_t *ldb, ldb_options_t *opt) {
+static void
+process_ldb_property(leveldb_t *ldb, ldb_options_t *opt)
+{
     char *value = leveldb_property_value(ldb, opt->propname);
 
     if (value == NULL) {
@@ -261,17 +208,22 @@ static void process_ldb_property(leveldb_t *ldb, ldb_options_t *opt) {
     }
 }
 
-static void process_ldb_repair(ldb_options_t *ldb_opt, leveldb_options_t *opt) {
+static void
+process_ldb_repair(ldb_options_t *ldb_opt, leveldb_options_t *opt)
+{
     char *errstr = NULL;
 
     struct timeval tv_start = tv_now();
     leveldb_repair_db(opt, ldb_opt->db_name, &errstr);
 
-    log_info("repair db <%s> %s! taken %.2fms", ldb_opt->db_name, errstr == NULL ? "successful!" : errstr, tv_sub_msec_double(tv_now(), tv_start));
+    log_info("repair db <%s> %s! taken %.2fms", ldb_opt->db_name,
+        errstr == NULL ? "successful!" : errstr, tv_sub_msec_double(tv_now(), tv_start));
     leveldb_free(errstr);
 }
 
-static void process_ldb(leveldb_t *ldb, const char *typ, const char *errstr, ldb_options_t *opt) {
+static void
+process_ldb(leveldb_t *ldb, const char *typ, const char *errstr, ldb_options_t *opt)
+{
     if (ldb == NULL) {
         if (errstr == NULL) {
             errstr = "no error str";
@@ -297,11 +249,15 @@ static void process_ldb(leveldb_t *ldb, const char *typ, const char *errstr, ldb
     }
 }
 
-int main(int argc, const char *argv[]) {
+int
+main(int argc, const char *argv[])
+{
     const char *base = basename(strdup(argv[0]));
 
     if (argc < 2) {
-        printf("usage: %s get|put|keys|compact_range|property|repair [db_name=db] [fill_cache=on|off] [verify_checksum=on|off]\n", base);
+        printf("usage: %s get|put|keys|compact_range|property|repair [db_name=db] "
+               "[fill_cache=on|off] [verify_checksum=on|off]\n",
+            base);
         return 1;
     }
 
@@ -332,12 +288,11 @@ int main(int argc, const char *argv[]) {
         leveldb_options_set_filter_policy(opt, filter);
     }
 
-
     leveldb_cache_t *cache = leveldb_cache_create_lru(ldb_opt->lru_size);
     if (ldb_opt->lru_size > 0) {
         leveldb_options_set_cache(opt, cache);
     }
-    
+
     if (!strcasecmp(type, "repair")) {
         process_ldb_repair(ldb_opt, opt);
     } else {
@@ -361,5 +316,4 @@ int main(int argc, const char *argv[]) {
     free(type);
 
     return 0;
-
 }

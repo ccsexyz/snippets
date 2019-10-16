@@ -8,31 +8,13 @@ typedef struct {
 
 static config cfg;
 
-static command_t cmds[] = {
-    {
-        "",
-        "host",
-        cmd_set_str,
-        offsetof(config, host),
-        ""
-    },
-    {
-        "r",
-        "remote_addr",
-        cmd_set_str,
-        offsetof(config, remote_addr),
-        ""
-    },
-    {
-        "s",
-        "sleep_second",
-        cmd_set_int,
-        offsetof(config, sleep_second),
-        ""
-    }
-};
+static command_t cmds[] = { { "", "host", cmd_set_str, offsetof(config, host), "" },
+    { "r", "remote_addr", cmd_set_str, offsetof(config, remote_addr), "" },
+    { "s", "sleep_second", cmd_set_int, offsetof(config, sleep_second), "" } };
 
-static void parse_and_init_config(int argc, const char **argv) {
+static void
+parse_and_init_config(int argc, const char **argv)
+{
     char *errstr = NULL;
     int rc = parse_command_args(argc, argv, &cfg, cmds, array_size(cmds), &errstr, NULL);
     if (rc != 0) {
@@ -58,9 +40,12 @@ static void parse_and_init_config(int argc, const char **argv) {
 
 static char rcvbuf[1048576];
 
-static int do_request(int sockfd) {
+static int
+do_request(int sockfd)
+{
     char buf[1024];
-    int n = snprintf(buf, sizeof(buf), "HEAD / HTTP/1.1\r\nConnection: Keep-Alive\r\nHost: %s\r\n\r\n", cfg.host);
+    int n = snprintf(buf, sizeof(buf),
+        "HEAD / HTTP/1.1\r\nConnection: Keep-Alive\r\nHost: %s\r\n\r\n", cfg.host);
     int rc = write(sockfd, buf, n);
     if (rc != n) {
         log_info("write to sockfd %d error, return %d, error: %s", sockfd, rc, strerror(errno));
@@ -88,14 +73,18 @@ static int do_request(int sockfd) {
     return 0;
 }
 
-static void do_wait(int sockfd) {
+static void
+do_wait(int sockfd)
+{
     char buf[4];
     log_info("wait start!");
     read(sockfd, buf, sizeof(buf));
     log_info("wait stop!");
 }
 
-static void print_peer_info(int sockfd) {
+static void
+print_peer_info(int sockfd)
+{
     struct sockaddr_storage storage;
     socklen_t slt = sizeof(storage);
     int rc = getpeername(sockfd, (struct sockaddr *)&storage, &slt);
@@ -124,7 +113,9 @@ static void print_peer_info(int sockfd) {
     log_info("getpeername return ip %s port %u", ip, port);
 }
 
-static void test_keepalive() {
+static void
+test_keepalive()
+{
     struct addrinfo hints;
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = PF_UNSPEC;
@@ -155,9 +146,11 @@ static void test_keepalive() {
     char ip[128];
 
     if (res->ai_family == AF_INET) {
-        inet_ntop(res->ai_family, &((struct sockaddr_in *)res->ai_addr)->sin_addr.s_addr, ip, sizeof(ip));
+        inet_ntop(
+            res->ai_family, &((struct sockaddr_in *)res->ai_addr)->sin_addr.s_addr, ip, sizeof(ip));
     } else if (res->ai_family == AF_INET6) {
-        inet_ntop(res->ai_family, &((struct sockaddr_in6 *)res->ai_addr)->sin6_addr.s6_addr, ip, sizeof(ip));
+        inet_ntop(res->ai_family, &((struct sockaddr_in6 *)res->ai_addr)->sin6_addr.s6_addr, ip,
+            sizeof(ip));
     } else {
         snprintf(ip, sizeof(ip), "-");
     }
@@ -193,7 +186,9 @@ static void test_keepalive() {
     freeaddrinfo(res);
 }
 
-int main(int argc, const char *argv[]) {
+int
+main(int argc, const char *argv[])
+{
     parse_and_init_config(argc, argv);
     test_keepalive();
     return 0;

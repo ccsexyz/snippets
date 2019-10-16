@@ -16,92 +16,29 @@ typedef struct {
     char *propname;
 } ldb_options_t;
 
-static command_t cmds[] = {
-    {
-        "",
-        "fill_cache",
-        cmd_set_bool,
-        offsetof(ldb_options_t, fill_cache),
-        "on"
-    },
-    {
-        "",
-        "verify_checksum",
-        cmd_set_bool,
-        offsetof(ldb_options_t, verify_checksum),
-        "on"
-    },
-    {
-        "",
-        "db_name",
-        cmd_set_str,
-        offsetof(ldb_options_t, db_name),
-        "testdb"
-    },
-    {
-        "",
-        "lru_size",
-        cmd_set_int,
-        offsetof(ldb_options_t, lru_size),
-        "1024"
-    },
-    {
-        "",
-        "max_open_files",
-        cmd_set_int,
-        offsetof(ldb_options_t, max_open_files),
-        "1024"
-    },
-    {
-        "",
-        "sync",
-        NULL,
-        offsetof(ldb_options_t, sync),
-        ""
-    },
-    {
-        "",
-        "bits_per_key",
-        cmd_set_int,
-        offsetof(ldb_options_t, bits_per_key),
-        "12"
-    },
-    {
-        "",
-        "compression",
-        cmd_set_str,
-        offsetof(ldb_options_t, compression),
-        "snappy"
-    },
-    {
-        "",
-        "range_start",
-        cmd_set_str,
-        offsetof(ldb_options_t, range_start),
-        ""
-    },
-    {
-        "",
-        "range_end",
-        cmd_set_str,
-        offsetof(ldb_options_t, range_end),
-        ""
-    },
-    {
-        "",
-        "propname",
-        cmd_set_str,
-        offsetof(ldb_options_t, propname),
-        ""
-    }
-};
+static command_t cmds[]
+    = { { "", "fill_cache", cmd_set_bool, offsetof(ldb_options_t, fill_cache), "on" },
+          { "", "verify_checksum", cmd_set_bool, offsetof(ldb_options_t, verify_checksum), "on" },
+          { "", "db_name", cmd_set_str, offsetof(ldb_options_t, db_name), "testdb" },
+          { "", "lru_size", cmd_set_int, offsetof(ldb_options_t, lru_size), "1024" },
+          { "", "max_open_files", cmd_set_int, offsetof(ldb_options_t, max_open_files), "1024" },
+          { "", "sync", NULL, offsetof(ldb_options_t, sync), "" },
+          { "", "bits_per_key", cmd_set_int, offsetof(ldb_options_t, bits_per_key), "12" },
+          { "", "compression", cmd_set_str, offsetof(ldb_options_t, compression), "snappy" },
+          { "", "range_start", cmd_set_str, offsetof(ldb_options_t, range_start), "" },
+          { "", "range_end", cmd_set_str, offsetof(ldb_options_t, range_end), "" },
+          { "", "propname", cmd_set_str, offsetof(ldb_options_t, propname), "" } };
 
-static ldb_options_t *ldb_create_options() {
+static ldb_options_t *
+ldb_create_options()
+{
     ldb_options_t *opt = (ldb_options_t *)calloc(sizeof(ldb_options_t), 1);
     return opt;
 }
 
-static void ldb_options_destroy(ldb_options_t *opt) {
+static void
+ldb_options_destroy(ldb_options_t *opt)
+{
     free(opt->db_name);
     free(opt->compression);
     free(opt->range_start);
@@ -110,7 +47,9 @@ static void ldb_options_destroy(ldb_options_t *opt) {
     free(opt);
 }
 
-static rocksdb_readoptions_t *create_readoptions(ldb_options_t *opt) {
+static rocksdb_readoptions_t *
+create_readoptions(ldb_options_t *opt)
+{
     rocksdb_readoptions_t *ropt = rocksdb_readoptions_create();
 
     if (opt->fill_cache) {
@@ -123,7 +62,9 @@ static rocksdb_readoptions_t *create_readoptions(ldb_options_t *opt) {
     return ropt;
 }
 
-static rocksdb_writeoptions_t *create_writeoptions(ldb_options_t *opt) {
+static rocksdb_writeoptions_t *
+create_writeoptions(ldb_options_t *opt)
+{
     rocksdb_writeoptions_t *wopt = rocksdb_writeoptions_create();
 
     if (opt->sync) {
@@ -133,20 +74,26 @@ static rocksdb_writeoptions_t *create_writeoptions(ldb_options_t *opt) {
     return wopt;
 }
 
-static void ldb_get(rocksdb_t *ldb, const char *db_name, const char *line, rocksdb_readoptions_t *ropt) {
+static void
+ldb_get(rocksdb_t *ldb, const char *db_name, const char *line, rocksdb_readoptions_t *ropt)
+{
     char *errstr = NULL;
     struct timeval tv = tv_now();
     size_t vallen = 0;
 
     char *value = rocksdb_get(ldb, ropt, line, strlen(line), &vallen, &errstr);
 
-    log_info("rocksdb_get key <%s> %s, vallen = %lu, errstr = %s, taken %.2fms", line, value ? "HIT" : "MISS", vallen, errstr ? errstr : "errstr is empty", tv_sub_msec_double(tv_now(), tv));
+    log_info("rocksdb_get key <%s> %s, vallen = %lu, errstr = %s, taken %.2fms", line,
+        value ? "HIT" : "MISS", vallen, errstr ? errstr : "errstr is empty",
+        tv_sub_msec_double(tv_now(), tv));
 
     rocksdb_free(errstr);
     rocksdb_free(value);
 }
 
-static void process_ldb_get(rocksdb_t *ldb, ldb_options_t *opt) {
+static void
+process_ldb_get(rocksdb_t *ldb, ldb_options_t *opt)
+{
     const char *line = NULL;
     char buf[1024 * 16];
 
@@ -169,7 +116,9 @@ static void process_ldb_get(rocksdb_t *ldb, ldb_options_t *opt) {
     rocksdb_readoptions_destroy(ropt);
 }
 
-static void ldb_put(rocksdb_t *ldb, const char *db_name, const char *line, rocksdb_writeoptions_t *wopt) {
+static void
+ldb_put(rocksdb_t *ldb, const char *db_name, const char *line, rocksdb_writeoptions_t *wopt)
+{
     char *errstr = NULL;
     struct timeval tv = tv_now();
     static int i = 0;
@@ -182,12 +131,15 @@ static void ldb_put(rocksdb_t *ldb, const char *db_name, const char *line, rocks
     } else {
         i++;
         if (i % 10000 == 0) {
-            log_info("rocksdb_put key <%s> to db %s taken %.2fms", line, db_name, tv_sub_msec_double(tv_now(), tv));
+            log_info("rocksdb_put key <%s> to db %s taken %.2fms", line, db_name,
+                tv_sub_msec_double(tv_now(), tv));
         }
     }
 }
 
-static void process_ldb_put(rocksdb_t *ldb, ldb_options_t *opt) {
+static void
+process_ldb_put(rocksdb_t *ldb, ldb_options_t *opt)
+{
     const char *line = NULL;
     char buf[1024 * 16];
 
@@ -208,7 +160,9 @@ static void process_ldb_put(rocksdb_t *ldb, ldb_options_t *opt) {
     rocksdb_writeoptions_destroy(wopt);
 }
 
-static void process_ldb_keys(rocksdb_t *ldb, ldb_options_t *opt) {
+static void
+process_ldb_keys(rocksdb_t *ldb, ldb_options_t *opt)
+{
     rocksdb_readoptions_t *ropt = create_readoptions(opt);
     rocksdb_iterator_t *iter = rocksdb_create_iterator(ldb, ropt);
 
@@ -224,7 +178,8 @@ static void process_ldb_keys(rocksdb_t *ldb, ldb_options_t *opt) {
         tv = tv_end;
 
         if (key) {
-            log_info("process key <%.*s> klen = %lu, value <%.*s> vlen = %lu, taken %.2fms", (int)klen, key, klen, (int)vlen, value, vlen, ms_taken);
+            log_info("process key <%.*s> klen = %lu, value <%.*s> vlen = %lu, taken %.2fms",
+                (int)klen, key, klen, (int)vlen, value, vlen, ms_taken);
         }
 
         rocksdb_iter_next(iter);
@@ -234,15 +189,20 @@ static void process_ldb_keys(rocksdb_t *ldb, ldb_options_t *opt) {
     rocksdb_readoptions_destroy(ropt);
 }
 
-static void process_ldb_compact_range(rocksdb_t *ldb, ldb_options_t *opt) {
+static void
+process_ldb_compact_range(rocksdb_t *ldb, ldb_options_t *opt)
+{
     log_info("start to compact_range start <%s> end <%s>", opt->range_start, opt->range_end);
 
     struct timeval tv_start = tv_now();
-    rocksdb_compact_range(ldb, opt->range_start, strlen(opt->range_start), opt->range_end, strlen(opt->range_end));
+    rocksdb_compact_range(
+        ldb, opt->range_start, strlen(opt->range_start), opt->range_end, strlen(opt->range_end));
     log_info("compact finished! taken %.2fms", tv_sub_msec_double(tv_now(), tv_start));
 }
 
-static void process_ldb_property(rocksdb_t *ldb, ldb_options_t *opt) {
+static void
+process_ldb_property(rocksdb_t *ldb, ldb_options_t *opt)
+{
     char *value = rocksdb_property_value(ldb, opt->propname);
 
     if (value == NULL) {
@@ -253,17 +213,22 @@ static void process_ldb_property(rocksdb_t *ldb, ldb_options_t *opt) {
     }
 }
 
-static void process_ldb_repair(ldb_options_t *ldb_opt, rocksdb_options_t *opt) {
+static void
+process_ldb_repair(ldb_options_t *ldb_opt, rocksdb_options_t *opt)
+{
     char *errstr = NULL;
 
     struct timeval tv_start = tv_now();
     rocksdb_repair_db(opt, ldb_opt->db_name, &errstr);
 
-    log_info("repair db <%s> %s! taken %.2fms", ldb_opt->db_name, errstr == NULL ? "successful!" : errstr, tv_sub_msec_double(tv_now(), tv_start));
+    log_info("repair db <%s> %s! taken %.2fms", ldb_opt->db_name,
+        errstr == NULL ? "successful!" : errstr, tv_sub_msec_double(tv_now(), tv_start));
     rocksdb_free(errstr);
 }
 
-static void process_ldb(rocksdb_t *ldb, const char *typ, const char *errstr, ldb_options_t *opt) {
+static void
+process_ldb(rocksdb_t *ldb, const char *typ, const char *errstr, ldb_options_t *opt)
+{
     if (ldb == NULL) {
         if (errstr == NULL) {
             errstr = "no error str";
@@ -289,11 +254,15 @@ static void process_ldb(rocksdb_t *ldb, const char *typ, const char *errstr, ldb
     }
 }
 
-int main(int argc, const char *argv[]) {
+int
+main(int argc, const char *argv[])
+{
     const char *base = basename(strdup(argv[0]));
 
     if (argc < 2) {
-        printf("usage: %s get|put|keys|compact_range|property|repair [db_name=db] [fill_cache=on|off] [verify_checksum=on|off]\n", base);
+        printf("usage: %s get|put|keys|compact_range|property|repair [db_name=db] "
+               "[fill_cache=on|off] [verify_checksum=on|off]\n",
+            base);
         return 1;
     }
 
@@ -312,23 +281,22 @@ int main(int argc, const char *argv[]) {
     rocksdb_options_t *opt = rocksdb_options_create();
     rocksdb_options_set_create_if_missing(opt, 1);
     rocksdb_options_set_max_open_files(opt, ldb_opt->max_open_files);
-    //rocksdb_options_set_target_file_size_base(opt, 32 * 1024 * 1024);
-    //rocksdb_options_set_target_file_size_multiplier(opt, 2);
+    // rocksdb_options_set_target_file_size_base(opt, 32 * 1024 * 1024);
+    // rocksdb_options_set_target_file_size_multiplier(opt, 2);
     if (!strcasecmp(ldb_opt->compression, "snappy")) {
         rocksdb_options_set_compression(opt, rocksdb_snappy_compression);
     }
     rocksdb_filterpolicy_t *filter = NULL;
     if (ldb_opt->bits_per_key > 0) {
         filter = rocksdb_filterpolicy_create_bloom(ldb_opt->bits_per_key);
-        //rocksdb_options_set_filter_policy(opt, filter);
+        // rocksdb_options_set_filter_policy(opt, filter);
     }
-
 
     rocksdb_cache_t *cache = rocksdb_cache_create_lru(ldb_opt->lru_size);
     if (ldb_opt->lru_size > 0) {
-        //rocksdb_options_set_cache(opt, cache);
+        // rocksdb_options_set_cache(opt, cache);
     }
-    
+
     // rocksdb_options_set_max_file_size(opt, 1024 * 1024 * 8);
 
     if (!strcasecmp(type, "repair")) {
@@ -354,5 +322,4 @@ int main(int argc, const char *argv[]) {
     free(type);
 
     return 0;
-
 }

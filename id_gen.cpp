@@ -10,23 +10,27 @@ static uint64_t __thread tls_id_end = 0;
 
 struct v1 {
 public:
-    inline uint64_t id_gen_impl() {
+    inline uint64_t
+    id_gen_impl()
+    {
         pthread_once(&global_id_once_1, global_id_init);
         return __sync_fetch_and_add(&global_id_pool_1, 1);
     }
 
 private:
-    
-    static void global_id_init() {
+    static void
+    global_id_init()
+    {
         uint32_t seed = (uint32_t)tv_now_usec();
         global_id_pool_1 = rand_r(&seed);
     }
 };
 
-template <int N>
-struct v2 {
+template <int N> struct v2 {
 public:
-    inline uint64_t id_gen_impl() {
+    inline uint64_t
+    id_gen_impl()
+    {
         pthread_once(&global_id_once_2, global_id_init);
 
         if (tls_id_start == tls_id_end) {
@@ -38,16 +42,19 @@ public:
     }
 
 private:
-
-    static void global_id_init() {
+    static void
+    global_id_init()
+    {
         uint32_t seed = (uint32_t)tv_now_usec();
         global_id_pool_2 = rand_r(&seed);
     }
 };
 
-template<typename T>
-void test(int n, int thread_num) {
-    auto thread_func = [&]{
+template <typename T>
+void
+test(int n, int thread_num)
+{
+    auto thread_func = [&] {
         T t;
         elapsed e(get_filt_type_name<T>());
 
@@ -65,7 +72,9 @@ void test(int n, int thread_num) {
     }
 }
 
-int main(void) {
+int
+main(void)
+{
     int n = 3000000;
     int thread_num = 4;
 

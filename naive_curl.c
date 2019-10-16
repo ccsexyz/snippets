@@ -1,13 +1,16 @@
+#include <curl/curl.h>
+#include <libgen.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
-#include <libgen.h>
 #include <string.h>
-#include <curl/curl.h>
 #include <sys/time.h>
+#include <unistd.h>
 
-static int progress_callback(void *ctx, double dltotal, double dlnow, double ultotal, double ulnow) {
-    //printf("ctx = %p, dltotal = %g dlnow = %g ultotal = %g ulnow = %g\n", ctx, dltotal, dlnow, ultotal, ulnow);
+static int
+progress_callback(void *ctx, double dltotal, double dlnow, double ultotal, double ulnow)
+{
+    // printf("ctx = %p, dltotal = %g dlnow = %g ultotal = %g ulnow = %g\n", ctx, dltotal, dlnow,
+    // ultotal, ulnow);
     fflush(stdout);
     struct timeval tv;
     gettimeofday(&tv, NULL);
@@ -16,14 +19,18 @@ static int progress_callback(void *ctx, double dltotal, double dlnow, double ult
     return 0;
 }
 
-static size_t header_callback(char *data, size_t size, size_t nitems, void *userdata) {
+static size_t
+header_callback(char *data, size_t size, size_t nitems, void *userdata)
+{
     char *str = strndup(data, size * nitems);
     printf("Header: %s\n", str);
     free(str);
     return nitems * size;
 }
 
-static int start_with(const char *str, const char *expect_start) {
+static int
+start_with(const char *str, const char *expect_start)
+{
     if (expect_start == NULL) {
         return 1;
     }
@@ -40,7 +47,9 @@ static int start_with(const char *str, const char *expect_start) {
     return !strncmp(str, expect_start, expect_len);
 }
 
-int main(int argc, char **argv) {
+int
+main(int argc, char **argv)
+{
     curl_global_init(CURL_GLOBAL_SSL);
 
     const char *name = basename(argv[0]);
@@ -48,7 +57,7 @@ int main(int argc, char **argv) {
         printf("usage: %s URL\n", name);
         return 1;
     }
-    const char *url = argv[1];  
+    const char *url = argv[1];
     if (!start_with(url, "http://") && !start_with(url, "https://")) {
         printf("url %s not start with http:// or https://\n", url);
         return 1;
