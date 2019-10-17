@@ -511,7 +511,12 @@ fetch_uri(URI *uri)
     }
     nghttp2_session_callback_setup(callbacks);
 
-    rc = nghttp2_session_client_new(&sess, callbacks, NULL);
+    nghttp2_option *option = NULL;
+    nghttp2_option_new(&option);
+    nghttp2_option_set_builtin_recv_extension_type(option, NGHTTP2_ALTSVC);
+    nghttp2_option_set_builtin_recv_extension_type(option, NGHTTP2_ORIGIN);
+
+    rc = nghttp2_session_client_new2(&sess, callbacks, NULL, option);
     if (rc) {
         log_fatal("nghttp2_session_client_new return %d", rc);
     }
@@ -524,6 +529,7 @@ fetch_uri(URI *uri)
     run_event_loop();
 
     nghttp2_session_del(sess);
+    nghttp2_option_del(option);
     close(sockfd);
     SSL_free(ssl);
     SSL_CTX_free(ssl_ctx);

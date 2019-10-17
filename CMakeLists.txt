@@ -18,6 +18,7 @@ find_package(pcre)
 find_package(re2)
 find_package(nghttp2)
 find_package(openssl)
+find_package(fmt)
 
 add_executable(test_keepalive "test_keepalive.c")
 
@@ -68,3 +69,6 @@ add_executable(h2client "h2client.c")
 target_link_libraries(h2client nghttp2)
 target_link_libraries(h2client ssl)
 target_link_libraries(h2client crypto)
+
+add_executable(bench_fmt "bench_fmt.cpp")
+target_link_libraries(bench_fmt fmt)
