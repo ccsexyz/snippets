@@ -22,6 +22,7 @@ typedef struct {
     long last_msec;
     size_t last_downloaded_length;
     long speed;
+    long remain;
     const char *log_level_str;
     int follow_redirection;
     int max_follow_times;
@@ -393,11 +394,12 @@ print_status(file_context_t *file_ctx)
             }
         }
 
-        if (file_ctx->downloaded_length > 0) {
+        if (file_ctx->downloaded_length > 0 && msec_taken > 0) {
             size_t download_length = file_ctx->downloaded_length - file_ctx->last_downloaded_length;
-            if (msec_taken > 0) {
-                file_ctx->speed = download_length / msec_taken;
-            }
+            size_t remain_length = file_ctx->content_length - file_ctx->downloaded_length;
+
+            file_ctx->speed = download_length / msec_taken;
+            file_ctx->remain = remain_length / (file_ctx->speed + 1);
         }
     }
 
@@ -411,9 +413,9 @@ print_status(file_context_t *file_ctx)
     char speed[1024];
     get_size_str(file_ctx->speed * 1000, speed, sizeof(speed));
 
-    log_info("progress: %.2f%% %s/%s speed: %s/s",
+    log_info("progress: %.2f%% %s/%s speed: %s/s, remain: %lds",
         (double)file_ctx->downloaded_length / file_ctx->content_length * 100, dlnow, dltotal,
-        speed);
+        speed, file_ctx->remain / 1000);
 }
 
 int
