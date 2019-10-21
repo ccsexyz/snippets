@@ -294,6 +294,15 @@ process_rst_stream_frame(const nghttp2_rst_stream *rst_stream)
 }
 
 static void
+print_origin_extension(const nghttp2_ext_origin *origin)
+{
+    for (size_t i = 0; i < origin->nov; i++) {
+        nghttp2_origin_entry *ov = &origin->ov[i];
+        log_info("origin host <%.*s>", (int)ov->origin_len, ov->origin);
+    }
+}
+
+static void
 process_http2_frame(const nghttp2_frame *frame, int c_to_s)
 {
     const char *base
@@ -315,6 +324,16 @@ process_http2_frame(const nghttp2_frame *frame, int c_to_s)
 
     case NGHTTP2_RST_STREAM:
         process_rst_stream_frame(&frame->rst_stream);
+        break;
+
+    case NGHTTP2_ORIGIN:
+        {
+            nghttp2_ext_origin *origin = (nghttp2_ext_origin *)frame->ext.payload;
+            if (origin) {
+                print_origin_extension(origin);
+            }
+        }
+
         break;
     }
 }
