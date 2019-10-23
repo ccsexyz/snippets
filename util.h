@@ -664,7 +664,7 @@ time_format(char *buf, size_t cap, time_t now)
     return 0;
 }
 
-int
+static int
 read_command_output(const char *command, char *buf, size_t n)
 {
     if (buf == NULL || n == 0) {

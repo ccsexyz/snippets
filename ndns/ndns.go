@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/fsnotify/fsnotify"
 	"github.com/miekg/dns"
 )
 
@@ -21,12 +22,14 @@ type record struct {
 }
 
 var (
-	file string
-	tcp  bool
-	udp  bool
-	addr string
+	file     string
+	tcp      bool
+	udp      bool
+	addr     string
+	autoload bool
 
-	recordMap map[string]*record
+	recordLock sync.Mutex
+	recordMap  map[string]*record
 )
 
 func init() {
@@ -34,8 +37,16 @@ func init() {
 	flag.BoolVar(&tcp, "t", false, "listen tcp")
 	flag.BoolVar(&udp, "u", true, "listen udp")
 	flag.StringVar(&addr, "l", ":53", "listen address")
+	flag.BoolVar(&autoload, "a", true, "auto reload record file")
 
 	recordMap = make(map[string]*record)
+}
+
+func lookUpRecord(k string) (r *record, ok bool) {
+	recordLock.Lock()
+	r, ok = recordMap[k]
+	recordLock.Unlock()
+	return
 }
 
 type handler struct {
@@ -51,7 +62,7 @@ func (this *handler) packAnswers(msg *dns.Msg, qtype uint16, domain string) {
 		return
 	}
 
-	r, ok := recordMap[domain]
+	r, ok := lookUpRecord(domain)
 	if !ok {
 		log.Println("domain", domain, "not found")
 		return
@@ -124,16 +135,53 @@ func runUdpServer() {
 	}
 }
 
-func main() {
-	flag.Parse()
-
+func loadFile() error {
 	records, err := readRecords(file)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
+
+	recordLock.Lock()
+	defer recordLock.Unlock()
+
+	recordMap = make(map[string]*record)
 
 	for _, v := range records {
 		recordMap[v.Host+"."] = v
+	}
+
+	return nil
+}
+
+func updater() {
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer watcher.Close()
+
+	err = watcher.Add(file)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer watcher.Remove(file)
+
+	for event := range watcher.Events {
+		log.Println("updater go event", event)
+		err = loadFile()
+		if err != nil {
+			log.Println("try to load file, but failed", err)
+		}
+		watcher.Remove(file)
+		watcher.Add(file)
+	}
+}
+
+func main() {
+	flag.Parse()
+
+	if err := loadFile(); err != nil {
+		log.Fatal(err)
 	}
 
 	var wg sync.WaitGroup
@@ -153,6 +201,8 @@ func main() {
 			wg.Done()
 		}()
 	}
+
+	go updater()
 
 	wg.Wait()
 }

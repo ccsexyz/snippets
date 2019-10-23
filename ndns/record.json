@@ -1,7 +1,7 @@
 [
     {
         "host": "www.baidu.com",
-        "tc": true,
+        "tc": false,
         "ips": [
             "127.0.0.2",
             "127.0.0.3",
