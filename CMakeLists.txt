@@ -51,6 +51,7 @@ if (UNIX AND NOT APPLE)
 endif()
 
 add_executable(sysinfo "sysinfo.c")
+target_link_libraries(sysinfo pthread)
 
 add_executable(uv_echo "uv_echo.c")
 target_link_libraries(uv_echo uv)
