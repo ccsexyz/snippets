@@ -1,6 +1,8 @@
 #include "re2/re2.h"
 #include "util.h"
 
+using std::string;
+
 static void
 match(const RE2 &re, const std::string &str)
 {

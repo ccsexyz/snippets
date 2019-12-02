@@ -16,6 +16,7 @@ import (
 type record struct {
 	Host    string   `json:"host"`
 	IPs     []string `json:"ips"`
+    CName   string `json:"cname"`
 	TTL     int      `json:"ttl"`
 	SleepMs int      `json:"sleep_ms"`
 	TC      bool     `json:"tc"`
@@ -87,6 +88,13 @@ func (this *handler) packAnswers(msg *dns.Msg, qtype uint16, domain string) {
 			})
 		}
 	}
+
+    if len(r.CName) > 0 {
+        msg.Answer = append(msg.Answer, &dns.CNAME{
+            Hdr: dns.RR_Header{Name: domain, Rrtype: dns.TypeCNAME, Class: dns.ClassINET, Ttl: uint32(r.TTL)},
+			Target: r.CName + ".",
+        })
+    }
 
 	if r.SleepMs > 0 {
 		time.Sleep(time.Duration(r.SleepMs) * time.Millisecond)

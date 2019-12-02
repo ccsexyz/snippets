@@ -73,3 +73,5 @@ target_link_libraries(h2client crypto)
 
 add_executable(bench_fmt "bench_fmt.cpp")
 target_link_libraries(bench_fmt fmt)
+
+add_executable(chash_test "chash_test.cpp")

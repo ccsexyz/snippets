@@ -910,26 +910,26 @@ log_raw(int logfd, char *buf, size_t cap, int level, const char *file, int line,
     })
 #endif
 
-#define log(level, fmt, args...)                                                                   \
+#define log__(level, fmt, args...)                                                                   \
     do {                                                                                           \
         if ((level) >= (LOG_MIN_LEVEL))                                                            \
             log_raw(STDOUT_FILENO, NULL, 0, (level), TRIM_FILE_NAME(__FILE__), (__LINE__),         \
                 (__func__), (fmt), ##args);                                                        \
     } while (0)
 
-#define log_verb(fmt, args...) log(LOG_VERBOSE, (fmt), ##args)
+#define log_verb(fmt, args...) log__(LOG_VERBOSE, (fmt), ##args)
 
-#define log_debug(fmt, args...) log(LOG_DEBUG, (fmt), ##args)
+#define log_debug(fmt, args...) log__(LOG_DEBUG, (fmt), ##args)
 
-#define log_info(fmt, args...) log(LOG_INFO, (fmt), ##args)
+#define log_info(fmt, args...) log__(LOG_INFO, (fmt), ##args)
 
-#define log_error(fmt, args...) log(LOG_ERROR, (fmt), ##args)
+#define log_error(fmt, args...) log__(LOG_ERROR, (fmt), ##args)
 
-#define log_alert(fmt, args...) log(LOG_ALERT, (fmt), ##args)
+#define log_alert(fmt, args...) log__(LOG_ALERT, (fmt), ##args)
 
 #define log_fatal(fmt, args...)                                                                    \
     do {                                                                                           \
-        log(LOG_FATAL, (fmt), ##args);                                                             \
+        log__(LOG_FATAL, (fmt), ##args);                                                             \
         exit(1);                                                                                   \
     } while (0)
 
@@ -946,12 +946,12 @@ log_raw(int logfd, char *buf, size_t cap, int level, const char *file, int line,
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-
-using namespace std;
+#include <tuple>
+#include <algorithm>
 
 class elapsed {
 public:
-    elapsed(const string &info)
+    elapsed(const std::string &info)
         : tv_(tv_now())
         , info_(info)
     {
@@ -960,7 +960,7 @@ public:
 
 private:
     struct timeval tv_;
-    string info_;
+    std::string info_;
 };
 
 template <typename T>
