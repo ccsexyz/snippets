@@ -77,3 +77,6 @@ target_link_libraries(bench_fmt fmt)
 add_executable(chash_test "chash_test.cpp")
 
 add_executable(cache_simulator "cache_simulator.cpp")
+
+add_executable(fork_test "fork_test.c")
+target_link_libraries(fork_test pthread)
