@@ -981,4 +981,11 @@ get_filt_type_name()
     return name;
 }
 
+static std::string get_size_str(size_t sz)
+{
+    char buf[1024];
+    get_size_str(sz, buf, sizeof(buf));
+    return std::string(buf);
+}
+
 #endif

@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.6)
 project(snippets)
 
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O0 -Wno-pointer-arith -Wno-unused-result")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -O0 -Wno-pointer-arith -Wno-unused-result")
@@ -75,3 +75,5 @@ add_executable(bench_fmt "bench_fmt.cpp")
 target_link_libraries(bench_fmt fmt)
 
 add_executable(chash_test "chash_test.cpp")
+
+add_executable(cache_simulator "cache_simulator.cpp")
