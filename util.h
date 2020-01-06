@@ -28,6 +28,7 @@ extern "C" {
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
 #include <signal.h>
@@ -665,12 +666,8 @@ time_format(char *buf, size_t cap, time_t now)
 }
 
 static int
-read_command_output(const char *command, char *buf, size_t n)
+read_command_output_popen(const char *command, char *buf, size_t n)
 {
-    if (buf == NULL || n == 0) {
-        return -2;
-    }
-
     FILE *pipe = popen(command, "r");
     if (pipe == NULL) {
         return -1;
@@ -695,6 +692,136 @@ read_command_output(const char *command, char *buf, size_t n)
     pclose(pipe);
 
     return 0;
+}
+
+static char **
+split_cstring(const char *str, const char *sep)
+{
+    if (str_empty(str) || str_empty(sep)) {
+        return NULL;
+    }
+
+    char *dupped_str = strdup(str);
+    size_t lenstr = strlen(dupped_str);
+    str = dupped_str;
+    char **arr = (char **)malloc(sizeof(char *) * (lenstr + 1));
+    char *token = NULL;
+    char *ptr = NULL;
+    int n = 0;
+
+    while ((token = strtok_r((char *)str, sep, &ptr)) != NULL) {
+        str = NULL;
+        arr[n++] = strdup(token);
+    }
+
+    arr[n] = NULL;
+    free(dupped_str);
+
+    return arr;
+}
+
+static void
+do_read_from_fd(int fd, char *buf, size_t n)
+{
+    if (n > 0) {
+        buf[0] = '\0';
+    }
+
+    while (n > 1) {
+        buf[0] = '\0';
+
+        int nr = read(fd, buf, n - 1);
+        if (nr > 0) {
+            buf[nr] = '\0';
+            buf += nr;
+            n -= nr;
+        }
+
+        if (nr <= 0) {
+            break;
+        }
+    }
+}
+
+static int
+read_command_output_impl_2(char **arr, char *buf, size_t n, int fds[2])
+{
+    int r = fds[0];
+    int w = fds[1];
+    int saved_errno = 0;
+
+    pid_t pid = vfork();
+    if (pid < 0) {
+        return -1;
+    }
+
+    if (pid == 0) {
+        // child process
+        close(r);
+
+        // redirect stdout and stderr to fd w
+        if (dup2(w, 1) < 0 || dup2(w, 2) < 0) {
+            saved_errno = errno;
+            _Exit(0);
+        }
+
+        if (execvp(arr[0], arr) < 0) {
+            saved_errno = errno;
+            _Exit(1);
+        }
+    } else {
+        // parent, read output from fd r
+        int dup_ret = dup2(r, w);
+        if (dup_ret >= 0) {
+            do_read_from_fd(r, buf, n);
+        }
+
+        waitpid(pid, NULL, 0);
+
+        if (dup_ret < 0) {
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+static int
+read_command_output_impl_1(const char *command, char *buf, size_t n, int fds[2])
+{
+    char **arr = split_cstring(command, " ");
+    if (arr == NULL) {
+        return -1;
+    }
+
+    int rc = read_command_output_impl_2(arr, buf, n, fds);
+
+    for (int i = 0; arr[i] != NULL; i++) {
+        free(arr[i]);
+    }
+    free(arr);
+
+    return rc;
+}
+
+static int
+read_command_output(const char *command, char *buf, size_t n)
+{
+    if (buf == NULL || n == 0) {
+        return -2;
+    }
+
+    int fds[2];
+    if (pipe(fds) < 0) {
+        return -1;
+    }
+
+    int rc = read_command_output_impl_1(command, buf, n, fds);
+
+    close(fds[0]);
+    close(fds[1]);
+
+    return rc;
 }
 
 typedef struct URI URI;

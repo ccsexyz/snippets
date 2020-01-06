@@ -19,6 +19,7 @@ typedef struct {
     int enable_fifo;
     int enable_lru;
     int enable_block;
+    int enable_block_v2;
 } config;
 
 static config g_cfg;
@@ -662,9 +663,9 @@ protected:
     long last_miss_length_ = 0;
 };
 
-class LRUCache : public Cache, public CacheStatImpl {
+template <typename Impl> class TCache : public Cache, public CacheStatImpl {
 public:
-    LRUCache(size_t cap)
+    TCache(size_t cap)
         : impl_(cap)
     {
     }
@@ -690,70 +691,13 @@ public:
     }
 
 private:
-    LRUCacheImpl<string> impl_;
+    Impl impl_;
 };
 
-class FIFOCache : public Cache, public CacheStatImpl {
-public:
-    FIFOCache(size_t cap)
-        : impl_(cap)
-    {
-    }
-
-    void get(const string &key, const size_t length) override
-    {
-        auto [is_hit, old_length] = impl_.get(key);
-        if (!is_hit || old_length != length) {
-            is_hit = false;
-            impl_.set(key, length);
-        }
-        on_get(key, length, is_hit);
-    }
-
-    Stat get_stat() const override
-    {
-        Stat stat;
-        stat.class_name = get_filt_type_name<decltype(*this)>();
-        stat.capacity = impl_.capacity();
-        stat.count = impl_.count();
-        stat.used = impl_.used();
-        return stat;
-    }
-
-private:
-    FIFOCacheImpl<string> impl_;
-};
-
-class BlockCache : public Cache, public CacheStatImpl {
-public:
-    BlockCache(size_t cap)
-        : impl_(cap)
-    {
-    }
-
-    void get(const string &key, const size_t length) override
-    {
-        auto [is_hit, old_length] = impl_.get(key);
-        if (!is_hit || old_length != length) {
-            is_hit = false;
-            impl_.set(key, length);
-        }
-        on_get(key, length, is_hit);
-    }
-
-    Stat get_stat() const override
-    {
-        Stat stat;
-        stat.class_name = get_filt_type_name<decltype(*this)>();
-        stat.capacity = impl_.capacity();
-        stat.count = impl_.count();
-        stat.used = impl_.used();
-        return stat;
-    }
-
-private:
-    BlockCacheImpl<string> impl_;
-};
+using LRUCache = TCache<LRUCacheImpl<string>>;
+using FIFOCache = TCache<FIFOCacheImpl<string>>;
+using BlockCache = TCache<BlockCacheImpl<string>>;
+using BlockCacheV2 = TCache<BlockCacheImplV2<string>>;
 
 vector<string> split(const string &str, const string &delim)
 {
@@ -774,6 +718,7 @@ vector<string> split(const string &str, const string &delim)
 LRUCache *g_lru_cache = nullptr;
 FIFOCache *g_fifo_cache = nullptr;
 BlockCache *g_block_cache = nullptr;
+BlockCacheV2 *g_block_cache_v2 = nullptr;
 
 static void cache_get(const string &key, const long len)
 {
@@ -789,6 +734,10 @@ static void cache_get(const string &key, const long len)
 
     if (g_cfg.enable_block) {
         g_block_cache->get(key, len);
+    }
+
+    if (g_cfg.enable_block_v2) {
+        g_block_cache_v2->get(key, len);
     }
 }
 
@@ -855,6 +804,7 @@ static command_t cmds[] = { { "c", "cap", cmd_set_size, offsetof(config, capacit
     { "", "fifo", cmd_set_bool, offsetof(config, enable_fifo), "on" },
     { "", "lru", cmd_set_bool, offsetof(config, enable_lru), "on" },
     { "", "block", cmd_set_bool, offsetof(config, enable_block), "on" },
+    { "", "block_v2", cmd_set_bool, offsetof(config, enable_block_v2), "on" },
     { "", "v2", nullptr, offsetof(config, is_v2), nullptr, "" } };
 
 int main(int argc, const char *argv[])
@@ -869,6 +819,7 @@ int main(int argc, const char *argv[])
     g_lru_cache = new LRUCache(g_cfg.capacity);
     g_fifo_cache = new FIFOCache(g_cfg.capacity);
     g_block_cache = new BlockCache(g_cfg.capacity);
+    g_block_cache_v2 = new BlockCacheV2(g_cfg.capacity);
 
     for (string line; std::getline(std::cin, line);) {
         if (g_cfg.is_v2) {
