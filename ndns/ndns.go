@@ -16,8 +16,9 @@ import (
 type record struct {
 	Host    string   `json:"host"`
 	IPs     []string `json:"ips"`
-    CName   string `json:"cname"`
+	CName   string   `json:"cname"`
 	TTL     int      `json:"ttl"`
+	V6TTL   int      `json:"v6_ttl"`
 	SleepMs int      `json:"sleep_ms"`
 	TC      bool     `json:"tc"`
 }
@@ -69,6 +70,12 @@ func (this *handler) packAnswers(msg *dns.Msg, qtype uint16, domain string) {
 		return
 	}
 
+	v4ttl := r.TTL
+	v6ttl := r.V6TTL
+	if v6ttl == 0 {
+		v6ttl = v4ttl
+	}
+
 	for _, ipstr := range r.IPs {
 		ip := net.ParseIP(ipstr)
 
@@ -78,23 +85,23 @@ func (this *handler) packAnswers(msg *dns.Msg, qtype uint16, domain string) {
 
 		if ip.To4() == nil && is6 {
 			msg.Answer = append(msg.Answer, &dns.AAAA{
-				Hdr:  dns.RR_Header{Name: domain, Rrtype: dns.TypeAAAA, Class: dns.ClassINET, Ttl: uint32(r.TTL)},
+				Hdr:  dns.RR_Header{Name: domain, Rrtype: dns.TypeAAAA, Class: dns.ClassINET, Ttl: uint32(v6ttl)},
 				AAAA: ip,
 			})
 		} else if ip.To4() != nil && is4 {
 			msg.Answer = append(msg.Answer, &dns.A{
-				Hdr: dns.RR_Header{Name: domain, Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: uint32(r.TTL)},
+				Hdr: dns.RR_Header{Name: domain, Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: uint32(v4ttl)},
 				A:   ip,
 			})
 		}
 	}
 
-    if len(r.CName) > 0 {
-        msg.Answer = append(msg.Answer, &dns.CNAME{
-            Hdr: dns.RR_Header{Name: domain, Rrtype: dns.TypeCNAME, Class: dns.ClassINET, Ttl: uint32(r.TTL)},
+	if len(r.CName) > 0 {
+		msg.Answer = append(msg.Answer, &dns.CNAME{
+			Hdr:    dns.RR_Header{Name: domain, Rrtype: dns.TypeCNAME, Class: dns.ClassINET, Ttl: uint32(r.TTL)},
 			Target: r.CName + ".",
-        })
-    }
+		})
+	}
 
 	if r.SleepMs > 0 {
 		time.Sleep(time.Duration(r.SleepMs) * time.Millisecond)
